@@ -40,6 +40,7 @@ interface PreviewCanvasProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isMuted: boolean;
+  videoVolume?: number;
   onToggleMute: () => void;
   onUploadClick: () => void;
   isExporting?: boolean;
@@ -67,6 +68,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   canvasRef,
   videoRef,
   isMuted,
+  videoVolume = 1.0,
   onToggleMute,
   onUploadClick,
   isExporting = false,
@@ -79,36 +81,13 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const clipVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const lastAdvancedClipIdRef = useRef<string | null>(null);
 
-  // Synchronize clip video elements
-  useEffect(() => {
-    if (!videoClips || videoClips.length === 0) return;
-    const currentMap = clipVideosRef.current;
-    videoClips.forEach((clip) => {
-      if (!currentMap.has(clip.id)) {
-        const v = document.createElement('video');
-        v.src = clip.url;
-        v.crossOrigin = 'anonymous';
-        v.playsInline = true;
-        v.preload = 'auto';
-        v.muted = isMuted;
-        currentMap.set(clip.id, v);
-      }
-    });
-
-    const activeIds = new Set(videoClips.map((c) => c.id));
-    currentMap.forEach((v, id) => {
-      if (!activeIds.has(id)) {
-        v.pause();
-        currentMap.delete(id);
-      }
-    });
-  }, [videoClips, isMuted]);
-
+  // Synchronize clip video elements audio & mute
   useEffect(() => {
     clipVideosRef.current.forEach((v) => {
       v.muted = isMuted;
+      v.volume = isMuted ? 0 : Math.min(1.0, videoVolume);
     });
-  }, [isMuted]);
+  }, [isMuted, videoVolume]);
 
   // Hover, Dragging & Resize states
   type DragMode = 'none' | 'watermark_move' | 'watermark_resize' | 'title' | 'title_resize' | 'subtitle';
@@ -202,84 +181,92 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           : videoClips[0]);
     }
 
+    const clipIdx = activeClip && videoClips ? videoClips.findIndex((c) => c.id === activeClip?.id) : -1;
+    const nextClip = (clipIdx >= 0 && clipIdx < videoClips.length - 1) ? videoClips[clipIdx + 1] : null;
+    const cutTransition = activeClip
+      ? (activeClip.transitionToNext ?? transitionConfig?.transitionBetweenClips ?? 'none')
+      : 'none';
+    const transDur = activeClip
+      ? (activeClip.transitionDuration ?? transitionConfig?.transitionDuration ?? 0.6)
+      : 0.6;
+    const cutTime = nextClip ? nextClip.start : duration;
+    const isCrossfading =
+      cutTransition === 'crossfade' &&
+      nextClip !== null &&
+      currentTime >= cutTime - transDur &&
+      currentTime <= cutTime;
+
     let activeVideoEl: HTMLVideoElement | null = null;
     if (activeClip) {
       activeVideoEl = clipVideosRef.current.get(activeClip.id) || null;
-      if (!activeVideoEl && activeClip.url) {
-        activeVideoEl = document.createElement('video');
-        activeVideoEl.src = activeClip.url;
-        activeVideoEl.crossOrigin = 'anonymous';
-        activeVideoEl.playsInline = true;
-        activeVideoEl.preload = 'auto';
-        activeVideoEl.muted = isMuted;
-        clipVideosRef.current.set(activeClip.id, activeVideoEl);
-      }
       if (activeVideoEl && videoRef) {
         (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = activeVideoEl;
       }
-    } else if (mediaAsset?.type === 'video' && videoRef.current) {
-      activeVideoEl = videoRef.current;
+    } else if (mediaAsset?.type === 'video') {
+      activeVideoEl = (videoRef && videoRef.current) || (mediaAsset ? clipVideosRef.current.get(mediaAsset.id) : null) || null;
     }
+
+    const targetVol = isMuted ? 0 : Math.min(1.0, videoVolume);
+
+    // Keep all other video elements paused (EXCEPT nextClip during crossfade window!)
+    clipVideosRef.current.forEach((v, id) => {
+      const isNextDuringCrossfade = isCrossfading && nextClip && id === nextClip.id;
+      if (activeClip && id !== activeClip.id && !isNextDuringCrossfade && !v.paused) {
+        try {
+          v.pause();
+        } catch (e) {}
+      }
+    });
 
     if (activeVideoEl) {
       const clipStart = activeClip ? activeClip.start : 0;
       const relTime = Math.max(0, currentTime - clipStart);
       const drift = Math.abs(activeVideoEl.currentTime - relTime);
 
+      // Synchronize video muted state & volume
+      if (activeVideoEl.muted !== isMuted) {
+        activeVideoEl.muted = isMuted;
+      }
+      if (Math.abs(activeVideoEl.volume - targetVol) > 0.05) {
+        activeVideoEl.volume = targetVol;
+      }
+
       if (!isPlaying) {
-        if (drift > 0.05) {
+        if (drift > 0.04) {
           try {
             activeVideoEl.currentTime = relTime;
           } catch (e) {}
         }
+        if (!activeVideoEl.paused) {
+          try {
+            activeVideoEl.pause();
+          } catch (e) {}
+        }
       } else {
-        // While playing: NEVER seek on minor drift!
-        // Only seek if user performed a major scrub / jump (> 1.2s)
+        // While playing: ONLY seek if user performed a major scrub / jump (> 1.2s)
         if (drift > 1.2) {
           try {
             activeVideoEl.currentTime = relTime;
           } catch (e) {}
         }
 
+        // Start active video if paused and timeline not at the end
+        if (activeVideoEl.paused && currentTime < duration - 0.04) {
+          activeVideoEl.play().catch(() => {});
+        }
+
         // Single master clock: report real hardware video playback time smoothly to timeline
         if (onTimeUpdate && !activeVideoEl.paused) {
           const currentReal = clipStart + activeVideoEl.currentTime;
-          if (Math.abs(currentTime - currentReal) > 0.04) {
+          if (Math.abs(currentTime - currentReal) > 0.03) {
             onTimeUpdate(currentReal);
           }
         }
       }
 
-      // Advance to next video clip smoothly if this clip has reached its end
-      if (isPlaying && activeClip && videoClips && videoClips.length > 1) {
-        const clipIdx = videoClips.findIndex((c) => c.id === activeClip?.id);
-        const isNearClipEnd =
-          activeVideoEl.ended ||
-          activeVideoEl.currentTime >= (activeClip.duration || 0) - 0.05;
-        if (
-          isNearClipEnd &&
-          clipIdx >= 0 &&
-          clipIdx < videoClips.length - 1 &&
-          lastAdvancedClipIdRef.current !== activeClip.id
-        ) {
-          lastAdvancedClipIdRef.current = activeClip.id;
-          const nextClip = videoClips[clipIdx + 1];
-          if (onTimeUpdate) {
-            onTimeUpdate(nextClip.start);
-          }
-        }
-      }
-
-      // Reset advance tracker once playback moves away from the end of the clip
-      if (!isPlaying || (activeClip && currentTime < activeClip.start + activeClip.duration - 0.3)) {
-        if (activeClip && lastAdvancedClipIdRef.current === activeClip.id) {
-          lastAdvancedClipIdRef.current = null;
-        }
-      }
-
       // Check if video reached total timeline duration
       const currentReal = clipStart + activeVideoEl.currentTime;
-      if (isPlaying && duration > 0 && currentReal >= duration) {
+      if (isPlaying && duration > 0 && (currentReal >= duration - 0.04 || currentTime >= duration - 0.04)) {
         try {
           activeVideoEl.pause();
           activeVideoEl.currentTime = 0;
@@ -288,23 +275,46 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         onTogglePlay();
       }
 
-      if (isPlaying && activeVideoEl.paused) {
-        activeVideoEl.play().catch(() => {});
-      } else if (!isPlaying && !activeVideoEl.paused) {
-        activeVideoEl.pause();
-      }
+      // Seamless clip handoff: advance to next clip when current clip reaches cut point
+      if (isPlaying && activeClip && nextClip) {
+        const isNearClipEnd =
+          activeVideoEl.ended ||
+          activeVideoEl.currentTime >= (activeClip.duration || 0) - 0.05 ||
+          currentTime >= cutTime - 0.03;
 
-      // Synchronize video muted state
-      if (activeVideoEl.muted !== isMuted) {
-        activeVideoEl.muted = isMuted;
-      }
+        if (isNearClipEnd && lastAdvancedClipIdRef.current !== activeClip.id) {
+          lastAdvancedClipIdRef.current = activeClip.id;
 
-      // Ensure other video elements are paused
-      clipVideosRef.current.forEach((v, id) => {
-        if (activeClip && id !== activeClip.id && !v.paused) {
-          v.pause();
+          try {
+            activeVideoEl.pause();
+          } catch (e) {}
+
+          const nextEl = clipVideosRef.current.get(nextClip.id);
+          if (nextEl) {
+            if (!isCrossfading || nextEl.paused) {
+              nextEl.currentTime = 0;
+              nextEl.muted = isMuted;
+              nextEl.volume = targetVol;
+              nextEl.play().catch(() => {});
+            }
+            if (videoRef) {
+              (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = nextEl;
+            }
+          }
+
+          if (onTimeUpdate) {
+            onTimeUpdate(nextClip.start);
+          }
         }
-      });
+      }
+
+      // Reset advance tracker once activeClip changes or when not playing
+      if (activeClip && lastAdvancedClipIdRef.current && lastAdvancedClipIdRef.current !== activeClip.id) {
+        lastAdvancedClipIdRef.current = null;
+      }
+      if (!isPlaying) {
+        lastAdvancedClipIdRef.current = null;
+      }
 
       activeSource = activeVideoEl;
       sourceWidth = activeVideoEl.videoWidth || cWidth;
@@ -365,48 +375,32 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       );
 
       // Crossfade transition between consecutive clips (per-cut or global setting)
-      if (videoClips && videoClips.length > 1 && activeClip) {
-        const clipIdx = videoClips.findIndex((c) => c.id === activeClip?.id);
-        if (clipIdx >= 0 && clipIdx < videoClips.length - 1) {
-          const cutTransition =
-            activeClip.transitionToNext ??
-            transitionConfig?.transitionBetweenClips ??
-            'none';
-
-          if (cutTransition === 'crossfade') {
-            const transDur =
-              activeClip.transitionDuration ??
-              transitionConfig?.transitionDuration ??
-              0.6;
-            const nextClip = videoClips[clipIdx + 1];
-            const cutTime = nextClip.start;
-            if (currentTime >= cutTime - transDur && currentTime <= cutTime) {
-              const p = (currentTime - (cutTime - transDur)) / transDur;
-              const nextV = clipVideosRef.current.get(nextClip.id);
-              if (nextV && nextV.videoWidth > 0) {
-                if (isPlaying && nextV.paused) {
-                  try {
-                    nextV.currentTime = Math.max(0, currentTime - cutTime);
-                    nextV.play().catch(() => {});
-                  } catch (e) {}
-                }
-                ctx.save();
-                ctx.globalAlpha = p;
-                ctx.drawImage(
-                  nextV,
-                  0,
-                  0,
-                  nextV.videoWidth,
-                  nextV.videoHeight,
-                  centerShiftX,
-                  centerShiftY,
-                  destW,
-                  destH
-                );
-                ctx.restore();
-              }
-            }
+      if (videoClips && videoClips.length > 1 && isCrossfading && nextClip) {
+        const p = Math.min(1, Math.max(0, (currentTime - (cutTime - transDur)) / transDur));
+        const nextV = clipVideosRef.current.get(nextClip.id);
+        if (nextV && nextV.videoWidth > 0) {
+          if (isPlaying && nextV.paused) {
+            try {
+              nextV.currentTime = Math.max(0, currentTime - (cutTime - transDur));
+              nextV.muted = isMuted;
+              nextV.volume = targetVol;
+              nextV.play().catch(() => {});
+            } catch (e) {}
           }
+          ctx.save();
+          ctx.globalAlpha = p;
+          ctx.drawImage(
+            nextV,
+            0,
+            0,
+            nextV.videoWidth,
+            nextV.videoHeight,
+            centerShiftX,
+            centerShiftY,
+            destW,
+            destH
+          );
+          ctx.restore();
         }
       }
 
@@ -956,14 +950,14 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           if (currentTime >= cutTime - half && currentTime <= cutTime + half) {
             const p = (currentTime - (cutTime - half)) / transDur;
             if (cutTransition === 'fade_black') {
-              const alpha = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
+              const alpha = Math.min(1, Math.max(0, 1 - Math.abs(p - 0.5) * 2));
               ctx.save();
               ctx.fillStyle = '#000000';
               ctx.globalAlpha = alpha;
               ctx.fillRect(0, 0, cWidth, cHeight);
               ctx.restore();
             } else if (cutTransition === 'flash_white') {
-              const alpha = Math.max(0, 1 - Math.abs(p - 0.5) * 2.5);
+              const alpha = Math.min(1, Math.max(0, 1 - Math.abs(p - 0.5) * 2));
               ctx.save();
               ctx.fillStyle = '#ffffff';
               ctx.globalAlpha = alpha;
@@ -1017,6 +1011,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     subtitles,
     canvasRef,
     videoRef,
+    isMuted,
+    videoVolume,
     hoveredElement,
     dragMode,
     isExporting,
@@ -1405,17 +1401,50 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       ref={containerRef}
       className="flex-1 bg-neutral-950 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none"
     >
-      {/* Hidden Video Player Element for Frame Decoding */}
-      {mediaAsset?.type === 'video' && (
-        <video
-          ref={videoRef}
-          src={mediaAsset.url}
-          className="hidden"
-          playsInline
-          muted={isMuted}
-          onTimeUpdate={(e) => onTimeUpdate((e.target as HTMLVideoElement).currentTime)}
-          onEnded={() => onSeek(0)}
-        />
+      {/* Hidden Video Player Elements for Frame Decoding across all clips */}
+      {videoClips && videoClips.length > 0 ? (
+        videoClips.map((clip) => (
+          <video
+            key={clip.id}
+            id={`video-clip-${clip.id}`}
+            ref={(el) => {
+              if (el) {
+                clipVideosRef.current.set(clip.id, el);
+              } else {
+                clipVideosRef.current.delete(clip.id);
+              }
+            }}
+            src={clip.url}
+            className="hidden"
+            playsInline
+            preload="auto"
+            crossOrigin="anonymous"
+            muted={isMuted}
+          />
+        ))
+      ) : (
+        mediaAsset?.type === 'video' && (
+          <video
+            key={mediaAsset.id}
+            id={`video-clip-${mediaAsset.id}`}
+            ref={(el) => {
+              if (el) {
+                clipVideosRef.current.set(mediaAsset.id, el);
+                if (videoRef) {
+                  (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+                }
+              } else {
+                clipVideosRef.current.delete(mediaAsset.id);
+              }
+            }}
+            src={mediaAsset.url}
+            className="hidden"
+            playsInline
+            preload="auto"
+            crossOrigin="anonymous"
+            muted={isMuted}
+          />
+        )
       )}
 
       {/* Center Canvas Viewport */}

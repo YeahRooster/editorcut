@@ -331,11 +331,18 @@ export const App: React.FC = () => {
 
   // Synchronize video element volume & mute
   useEffect(() => {
+    videoClips.forEach((c) => {
+      const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
+      if (el) {
+        el.volume = isVideoMuted ? 0 : Math.min(1.0, videoVolume);
+        el.muted = isVideoMuted;
+      }
+    });
     if (videoRef.current) {
       videoRef.current.volume = isVideoMuted ? 0 : Math.min(1.0, videoVolume);
       videoRef.current.muted = isVideoMuted;
     }
-  }, [videoVolume, isVideoMuted]);
+  }, [videoVolume, isVideoMuted, videoClips]);
 
   // Synchronize music player volume & mute
   useEffect(() => {
@@ -352,24 +359,59 @@ export const App: React.FC = () => {
   // Handle Play/Pause
   const handleTogglePlay = () => {
     if (!isPlaying) {
-      setIsPlaying(true);
-      if (mediaAsset?.type === 'video' && videoRef.current) {
-        videoRef.current.currentTime = currentTime;
-        videoRef.current.volume = isVideoMuted ? 0 : Math.min(1.0, videoVolume);
-        videoRef.current.muted = isVideoMuted;
-        videoRef.current.play().catch(console.error);
+      const startTime = currentTime >= duration - 0.05 ? 0 : currentTime;
+      if (startTime !== currentTime) {
+        setCurrentTime(startTime);
       }
+      setIsPlaying(true);
+
+      const targetClip = videoClips && videoClips.length > 0
+        ? (videoClips.find((c) => startTime >= c.start && startTime < c.start + c.duration) ||
+           (startTime >= duration ? videoClips[videoClips.length - 1] : videoClips[0]))
+        : null;
+
+      const targetEl = targetClip
+        ? (document.getElementById('video-clip-' + targetClip.id) as HTMLVideoElement)
+        : videoRef.current;
+
+      const elToPlay = targetEl || videoRef.current;
+      if (elToPlay) {
+        const clipStart = targetClip ? targetClip.start : 0;
+        const relTime = Math.max(0, startTime - clipStart);
+        if (Math.abs(elToPlay.currentTime - relTime) > 0.08) {
+          try {
+            elToPlay.currentTime = relTime;
+          } catch (e) {}
+        }
+        elToPlay.volume = isVideoMuted ? 0 : Math.min(1.0, videoVolume);
+        elToPlay.muted = isVideoMuted;
+        elToPlay.play().catch(console.error);
+        if (videoRef) {
+          videoRef.current = elToPlay;
+        }
+      }
+
       const effAddedVol = audioConfig.isMuted ? 0 : audioConfig.volume;
       if (audioConfig.presetTheme !== 'none') {
         musicPlayer.playTheme(audioConfig.presetTheme, effAddedVol);
       } else if (audioConfig.url) {
-        musicPlayer.playCustomAudio(audioConfig.url, effAddedVol, currentTime, audioConfig.isLoop);
+        musicPlayer.playCustomAudio(audioConfig.url, effAddedVol, startTime, audioConfig.isLoop);
       }
-      musicPlayer.syncClips(audioClips, currentTime, true);
+      musicPlayer.syncClips(audioClips, startTime, true);
     } else {
       setIsPlaying(false);
-      if (mediaAsset?.type === 'video' && videoRef.current) {
-        videoRef.current.pause();
+      videoClips.forEach((c) => {
+        const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
+        if (el && !el.paused) {
+          try {
+            el.pause();
+          } catch (e) {}
+        }
+      });
+      if (videoRef.current && !videoRef.current.paused) {
+        try {
+          videoRef.current.pause();
+        } catch (e) {}
       }
       musicPlayer.pause();
       musicPlayer.stopAllClips();
@@ -409,9 +451,26 @@ export const App: React.FC = () => {
   // Handle Seek
   const handleSeek = (time: number) => {
     setCurrentTime(time);
-    if (mediaAsset?.type === 'video' && videoRef.current) {
-      videoRef.current.currentTime = time;
+    const targetClip = videoClips && videoClips.length > 0
+      ? (videoClips.find((c) => time >= c.start && time < c.start + c.duration) ||
+         (time >= duration ? videoClips[videoClips.length - 1] : videoClips[0]))
+      : null;
+
+    const targetEl = targetClip
+      ? (document.getElementById('video-clip-' + targetClip.id) as HTMLVideoElement)
+      : videoRef.current;
+
+    const elToSeek = targetEl || videoRef.current;
+    if (elToSeek) {
+      const clipStart = targetClip ? targetClip.start : 0;
+      const relTime = Math.max(0, time - clipStart);
+      try {
+        elToSeek.currentTime = relTime;
+      } catch (e) {}
       selfieSegmenter.clearMask();
+      if (videoRef) {
+        videoRef.current = elToSeek;
+      }
     }
     musicPlayer.seek(time);
     musicPlayer.seekClips(audioClips, time);
@@ -880,6 +939,15 @@ export const App: React.FC = () => {
     setIsPlaying(false);
     musicPlayer.stop();
     musicPlayer.stopAllClips();
+    videoClips.forEach((c) => {
+      const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
+      if (el) {
+        try {
+          el.pause();
+          el.currentTime = 0;
+        } catch (e) {}
+      }
+    });
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -1046,6 +1114,15 @@ export const App: React.FC = () => {
 
       // Synchronize video playback from 0 for canvas rendering
       handleSeek(0);
+      videoClips.forEach((c) => {
+        const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
+        if (el) {
+          try {
+            el.pause();
+            el.currentTime = 0;
+          } catch (e) {}
+        }
+      });
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
@@ -1073,7 +1150,15 @@ export const App: React.FC = () => {
         async () => {
           // Simultaneous frame-0 unfreeze: un-freeze audio clock & start video playback
           await exportAudioCtx.resume().catch(() => {});
-          if (videoRef.current) {
+          const firstClip = videoClips[0];
+          const firstEl = firstClip
+            ? (document.getElementById('video-clip-' + firstClip.id) as HTMLVideoElement)
+            : videoRef.current;
+          if (firstEl) {
+            firstEl.currentTime = 0;
+            firstEl.play().catch(console.error);
+            if (videoRef) videoRef.current = firstEl;
+          } else if (videoRef.current) {
             videoRef.current.play().catch(console.error);
           }
           setIsPlaying(true);
@@ -1083,6 +1168,14 @@ export const App: React.FC = () => {
       setExportedBlob(blob);
       setExportComplete(true);
       setIsPlaying(false);
+      videoClips.forEach((c) => {
+        const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
+        if (el && !el.paused) {
+          try {
+            el.pause();
+          } catch (e) {}
+        }
+      });
       if (mediaAsset?.type === 'video' && videoRef.current) {
         videoRef.current.pause();
         videoRef.current.muted = isVideoMuted;
@@ -1242,6 +1335,7 @@ export const App: React.FC = () => {
           canvasRef={canvasRef}
           videoRef={videoRef}
           isMuted={isVideoMuted}
+          videoVolume={videoVolume}
           onToggleMute={() => setIsVideoMuted((prev) => !prev)}
           onUploadClick={() => fileInputRef.current?.click()}
           isExporting={isExporting}
