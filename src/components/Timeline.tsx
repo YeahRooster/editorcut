@@ -6,7 +6,8 @@ import type {
   AudioClip, 
   VideoClip,
   WatermarkConfig,
-  TimelineSelection 
+  TimelineSelection,
+  VideoTransitionType
 } from '../types';
 import { 
   Scissors, 
@@ -28,6 +29,7 @@ import {
 interface TimelineProps {
   mediaAsset: MediaAsset | null;
   videoClips: VideoClip[];
+  setVideoClips?: React.Dispatch<React.SetStateAction<VideoClip[]>>;
   currentTime: number;
   duration: number;
   onSeek: (time: number) => void;
@@ -54,6 +56,7 @@ interface TimelineProps {
 export const Timeline: React.FC<TimelineProps> = ({
   mediaAsset,
   videoClips,
+  setVideoClips,
   currentTime,
   duration,
   onSeek,
@@ -439,9 +442,40 @@ export const Timeline: React.FC<TimelineProps> = ({
                       {clip.name} ({Math.round(clipDur)}s)
                     </span>
                     {index < effectiveVideoClips.length - 1 && (
-                      <span className="text-[9px] px-1 py-0.2 bg-neutral-900 border border-neutral-700 text-sky-400 rounded">
-                        Transición
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!setVideoClips) return;
+                          const currentTrans = clip.transitionToNext ?? 'none';
+                          const nextMap: Record<VideoTransitionType, VideoTransitionType> = {
+                            none: 'crossfade',
+                            crossfade: 'fade_black',
+                            fade_black: 'flash_white',
+                            flash_white: 'none',
+                          };
+                          const newTrans = nextMap[currentTrans];
+                          setVideoClips((prev) =>
+                            prev.map((c, idx) =>
+                              idx === index ? { ...c, transitionToNext: newTrans } : c
+                            )
+                          );
+                        }}
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold border transition flex items-center gap-1 z-20 active:scale-95 ${
+                          (clip.transitionToNext || 'none') !== 'none'
+                            ? 'bg-sky-500/40 border-sky-400 text-sky-100 shadow-sm'
+                            : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-white'
+                        }`}
+                        title="Haz clic para cambiar la transición de este corte (Corte, Crossfade, A Negro, Flash)"
+                      >
+                        {clip.transitionToNext === 'crossfade'
+                          ? '🔀 Crossfade'
+                          : clip.transitionToNext === 'fade_black'
+                          ? '⬛ A Negro'
+                          : clip.transitionToNext === 'flash_white'
+                          ? '⚡ Flash'
+                          : '✂️ Corte'}
+                      </button>
                     )}
                   </div>
                 </div>

@@ -350,36 +350,47 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         destH
       );
 
-      // Crossfade transition between consecutive clips
-      if (
-        videoClips &&
-        videoClips.length > 1 &&
-        transitionConfig?.transitionBetweenClips === 'crossfade' &&
-        activeClip
-      ) {
-        const transDur = transitionConfig.transitionDuration || 0.6;
+      // Crossfade transition between consecutive clips (per-cut or global setting)
+      if (videoClips && videoClips.length > 1 && activeClip) {
         const clipIdx = videoClips.findIndex((c) => c.id === activeClip?.id);
         if (clipIdx >= 0 && clipIdx < videoClips.length - 1) {
-          const nextClip = videoClips[clipIdx + 1];
-          const cutTime = nextClip.start;
-          if (currentTime >= cutTime - transDur && currentTime <= cutTime) {
-            const p = (currentTime - (cutTime - transDur)) / transDur;
-            const nextV = clipVideosRef.current.get(nextClip.id);
-            if (nextV && nextV.videoWidth > 0) {
-              ctx.save();
-              ctx.globalAlpha = p;
-              ctx.drawImage(
-                nextV,
-                0,
-                0,
-                nextV.videoWidth,
-                nextV.videoHeight,
-                centerShiftX,
-                centerShiftY,
-                destW,
-                destH
-              );
-              ctx.restore();
+          const cutTransition =
+            activeClip.transitionToNext ??
+            transitionConfig?.transitionBetweenClips ??
+            'none';
+
+          if (cutTransition === 'crossfade') {
+            const transDur =
+              activeClip.transitionDuration ??
+              transitionConfig?.transitionDuration ??
+              0.6;
+            const nextClip = videoClips[clipIdx + 1];
+            const cutTime = nextClip.start;
+            if (currentTime >= cutTime - transDur && currentTime <= cutTime) {
+              const p = (currentTime - (cutTime - transDur)) / transDur;
+              const nextV = clipVideosRef.current.get(nextClip.id);
+              if (nextV && nextV.videoWidth > 0) {
+                if (isPlaying && nextV.paused) {
+                  try {
+                    nextV.currentTime = Math.max(0, currentTime - cutTime);
+                    nextV.play().catch(() => {});
+                  } catch (e) {}
+                }
+                ctx.save();
+                ctx.globalAlpha = p;
+                ctx.drawImage(
+                  nextV,
+                  0,
+                  0,
+                  nextV.videoWidth,
+                  nextV.videoHeight,
+                  centerShiftX,
+                  centerShiftY,
+                  destW,
+                  destH
+                );
+                ctx.restore();
+              }
             }
           }
         }
@@ -912,35 +923,41 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // -------------------------------------------------------------
     // LAYER: VIDEO TRANSITIONS (Fade to black / Flash white between clips)
     // -------------------------------------------------------------
-    if (
-      videoClips &&
-      videoClips.length > 1 &&
-      transitionConfig?.transitionBetweenClips &&
-      transitionConfig.transitionBetweenClips !== 'none' &&
-      transitionConfig.transitionBetweenClips !== 'crossfade'
-    ) {
-      const transDur = transitionConfig.transitionDuration || 0.6;
-      const half = transDur / 2;
-      for (let i = 1; i < videoClips.length; i++) {
-        const cutTime = videoClips[i].start;
-        if (currentTime >= cutTime - half && currentTime <= cutTime + half) {
-          const p = (currentTime - (cutTime - half)) / transDur;
-          if (transitionConfig.transitionBetweenClips === 'fade_black') {
-            const alpha = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
-            ctx.save();
-            ctx.fillStyle = '#000000';
-            ctx.globalAlpha = alpha;
-            ctx.fillRect(0, 0, cWidth, cHeight);
-            ctx.restore();
-          } else if (transitionConfig.transitionBetweenClips === 'flash_white') {
-            const alpha = Math.max(0, 1 - Math.abs(p - 0.5) * 2.5);
-            ctx.save();
-            ctx.fillStyle = '#ffffff';
-            ctx.globalAlpha = alpha;
-            ctx.fillRect(0, 0, cWidth, cHeight);
-            ctx.restore();
+    if (videoClips && videoClips.length > 1) {
+      for (let i = 0; i < videoClips.length - 1; i++) {
+        const clip = videoClips[i];
+        const nextClip = videoClips[i + 1];
+        const cutTransition =
+          clip.transitionToNext ??
+          transitionConfig?.transitionBetweenClips ??
+          'none';
+
+        if (cutTransition === 'fade_black' || cutTransition === 'flash_white') {
+          const transDur =
+            clip.transitionDuration ??
+            transitionConfig?.transitionDuration ??
+            0.6;
+          const half = transDur / 2;
+          const cutTime = nextClip.start;
+          if (currentTime >= cutTime - half && currentTime <= cutTime + half) {
+            const p = (currentTime - (cutTime - half)) / transDur;
+            if (cutTransition === 'fade_black') {
+              const alpha = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
+              ctx.save();
+              ctx.fillStyle = '#000000';
+              ctx.globalAlpha = alpha;
+              ctx.fillRect(0, 0, cWidth, cHeight);
+              ctx.restore();
+            } else if (cutTransition === 'flash_white') {
+              const alpha = Math.max(0, 1 - Math.abs(p - 0.5) * 2.5);
+              ctx.save();
+              ctx.fillStyle = '#ffffff';
+              ctx.globalAlpha = alpha;
+              ctx.fillRect(0, 0, cWidth, cHeight);
+              ctx.restore();
+            }
+            break;
           }
-          break;
         }
       }
     }

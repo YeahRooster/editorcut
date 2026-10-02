@@ -99,6 +99,8 @@ export interface VideoClip {
   volume?: number;
   trimStart?: number;
   trimEnd?: number;
+  transitionToNext?: VideoTransitionType;
+  transitionDuration?: number;
 }
 
 export interface AudioClip {

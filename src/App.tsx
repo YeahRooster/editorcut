@@ -778,25 +778,63 @@ export const App: React.FC = () => {
     clipboardItem,
   ]);
 
-  // SPEECH TO TEXT: Runs local whisper directly on the loaded video
+  // SPEECH TO TEXT: Runs local whisper across ALL loaded video clips
   const handleAutoSubtitles = async () => {
-    if (!mediaAsset) {
+    const clipsToProcess =
+      videoClips.length > 0
+        ? videoClips
+        : mediaAsset?.file
+        ? [
+            {
+              id: mediaAsset.id,
+              name: mediaAsset.name,
+              file: mediaAsset.file,
+              start: 0,
+              duration: mediaAsset.duration,
+            } as VideoClip,
+          ]
+        : [];
+
+    if (clipsToProcess.length === 0) {
       fileInputRef.current?.click();
       return;
     }
 
     setIsTranscribing(true);
-    setTranscribeStatus('Iniciando extracción y análisis de voz...');
+    setTranscribeStatus('Iniciando extracción y análisis de voz en tus videos...');
 
     try {
       let results: SubtitleItem[] = [];
-      if (mediaAsset.file) {
-        results = await whisperService.transcribeVideoFile(
-          mediaAsset.file,
-          (msg) => setTranscribeStatus(msg)
+      let globalSubCount = 1;
+
+      for (let i = 0; i < clipsToProcess.length; i++) {
+        const clip = clipsToProcess[i];
+        if (!clip.file) continue;
+
+        const totalClips = clipsToProcess.length;
+        const prefix = totalClips > 1 ? `[Video ${i + 1}/${totalClips}] ` : '';
+
+        setTranscribeStatus(`${prefix}Extrayendo audio de "${clip.name}"...`);
+
+        const clipSubtitles = await whisperService.transcribeVideoFile(
+          clip.file,
+          (msg) => setTranscribeStatus(`${prefix}${msg}`)
         );
-      } else {
-        // Fallback generator for url demo
+
+        // Offset subtitles by the clip's start time on the global timeline
+        const clipStart = clip.start || 0;
+        const adjustedSubtitles: SubtitleItem[] = clipSubtitles.map((item) => ({
+          id: `sub-${clip.id}-${globalSubCount++}`,
+          start: Math.round((clipStart + item.start) * 100) / 100,
+          end: Math.round((clipStart + item.end) * 100) / 100,
+          text: item.text,
+        }));
+
+        results.push(...adjustedSubtitles);
+      }
+
+      if (results.length === 0 && !mediaAsset?.file) {
+        // Fallback generator for demo if no local audio file available
         setTranscribeStatus('Sincronizando subtítulos de muestra...');
         await new Promise((r) => setTimeout(r, 800));
         results = [
@@ -813,11 +851,16 @@ export const App: React.FC = () => {
         enabled: true,
         mode: 'dynamic_subtitles',
       }));
-      setTranscribeStatus('¡Listo! Subtítulos sincronizados.');
+
+      const doneMessage =
+        clipsToProcess.length > 1
+          ? `¡Listo! Subtítulos de los ${clipsToProcess.length} videos sincronizados.`
+          : '¡Listo! Subtítulos sincronizados.';
+      setTranscribeStatus(doneMessage);
       setTimeout(() => {
         setIsTranscribing(false);
         setTranscribeStatus('');
-      }, 1200);
+      }, 1500);
     } catch (err) {
       console.error(err);
       setIsTranscribing(false);
@@ -1211,6 +1254,7 @@ export const App: React.FC = () => {
       <Timeline
         mediaAsset={mediaAsset}
         videoClips={videoClips}
+        setVideoClips={setVideoClips}
         currentTime={currentTime}
         duration={duration}
         onSeek={handleSeek}

@@ -773,10 +773,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </div>
 
               {/* 3. Transition between consecutive clips */}
-              <div className="space-y-1">
-                <span className="text-[11px] font-semibold text-neutral-300">
-                  🔀 Transición entre Videos Unidos
-                </span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-neutral-300">
+                    🔀 Transición por defecto
+                  </span>
+                  <span className="text-[10px] text-neutral-500">General</span>
+                </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
                     { key: 'none', label: 'Corte Directo' },
@@ -803,6 +806,81 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     </button>
                   ))}
                 </div>
+
+                {/* Per-cut custom transitions if there are multiple video clips */}
+                {videoClips && videoClips.length > 1 && (
+                  <div className="pt-2 border-t border-neutral-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-sky-400">
+                        ✂️ Personalizar cada corte individual:
+                      </span>
+                      <span className="text-[10px] text-neutral-400">
+                        {videoClips.length - 1} {videoClips.length - 1 === 1 ? 'corte' : 'cortes'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {videoClips.slice(0, -1).map((clip, i) => {
+                        const nextClip = videoClips[i + 1];
+                        const activeTrans =
+                          clip.transitionToNext ??
+                          transitionConfig.transitionBetweenClips ??
+                          'none';
+
+                        return (
+                          <div
+                            key={clip.id}
+                            className="p-2.5 rounded-xl bg-neutral-950/80 border border-neutral-800 space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-neutral-200">
+                                Corte #{i + 1}
+                              </span>
+                              <span className="text-[10px] text-sky-400/90 font-mono">
+                                en {Math.round(nextClip.start)}s
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-neutral-400 truncate">
+                              "{clip.name}" ➔ "{nextClip.name}"
+                            </div>
+                            <div className="grid grid-cols-4 gap-1 pt-1">
+                              {[
+                                { key: 'none', label: 'Directo' },
+                                { key: 'crossfade', label: 'Crossfade' },
+                                { key: 'fade_black', label: 'A Negro' },
+                                { key: 'flash_white', label: 'Flash' },
+                              ].map(({ key, label }) => {
+                                const isSelected = activeTrans === key;
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => {
+                                      setVideoClips((prev) =>
+                                        prev.map((c, idx) =>
+                                          idx === i
+                                            ? { ...c, transitionToNext: key as VideoTransitionType }
+                                            : c
+                                        )
+                                      );
+                                    }}
+                                    className={`py-1 px-1 rounded-lg text-[10px] font-semibold border transition text-center ${
+                                      isSelected
+                                        ? 'bg-sky-500/25 border-sky-400 text-sky-200 font-bold shadow-sm'
+                                        : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
