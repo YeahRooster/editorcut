@@ -77,6 +77,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const watermarkImgRef = useRef<HTMLImageElement | null>(null);
   const staticImgRef = useRef<HTMLImageElement | null>(null);
   const clipVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const lastAdvancedClipIdRef = useRef<string | null>(null);
 
   // Synchronize clip video elements
   useEffect(() => {
@@ -255,11 +256,24 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         const isNearClipEnd =
           activeVideoEl.ended ||
           activeVideoEl.currentTime >= (activeClip.duration || 0) - 0.05;
-        if (isNearClipEnd && clipIdx >= 0 && clipIdx < videoClips.length - 1) {
+        if (
+          isNearClipEnd &&
+          clipIdx >= 0 &&
+          clipIdx < videoClips.length - 1 &&
+          lastAdvancedClipIdRef.current !== activeClip.id
+        ) {
+          lastAdvancedClipIdRef.current = activeClip.id;
           const nextClip = videoClips[clipIdx + 1];
           if (onTimeUpdate) {
             onTimeUpdate(nextClip.start);
           }
+        }
+      }
+
+      // Reset advance tracker once playback moves away from the end of the clip
+      if (!isPlaying || (activeClip && currentTime < activeClip.start + activeClip.duration - 0.3)) {
+        if (activeClip && lastAdvancedClipIdRef.current === activeClip.id) {
+          lastAdvancedClipIdRef.current = null;
         }
       }
 
