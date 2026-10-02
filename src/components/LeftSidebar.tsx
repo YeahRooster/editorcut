@@ -3,7 +3,8 @@ import type {
   TextOverlayConfig, 
   WatermarkConfig, 
   AudioTrackConfig, 
-  SubtitleItem, 
+  SubtitleItem,
+  TextClipItem, 
   MediaAsset,
   VideoClip,
   AudioClip,
@@ -69,6 +70,9 @@ interface LeftSidebarProps {
   setTransitionConfig: React.Dispatch<React.SetStateAction<TransitionConfig>>;
   selectedItem: TimelineSelection | null;
   onSelectItem: (item: TimelineSelection | null) => void;
+  textClips?: TextClipItem[];
+  setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
+  onAddTextClip?: () => void;
 }
 
 type TabKey = 'media' | 'text' | 'subtitles' | 'music' | 'watermark';
@@ -102,6 +106,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   setTransitionConfig,
   selectedItem,
   onSelectItem,
+  textClips = [],
+  setTextClips,
+  onAddTextClip,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('text');
   const [isMicListening, setIsMicListening] = useState(false);
@@ -974,36 +981,95 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {/* ========================================================= */}
         {activeTab === 'text' && (
           <div className="space-y-4">
-            {/* Control to enable or completely remove/clear text */}
-            {textConfig.enabled ? (
-              <div className="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs font-bold text-white">Texto en pantalla activo</span>
-                </div>
+            {/* Quick Header & Add Title on Timeline */}
+            <div className="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
+                <span className="text-xs font-bold text-white">Títulos & Textos Animados</span>
+              </div>
+              {onAddTextClip ? (
+                <button
+                  type="button"
+                  onClick={onAddTextClip}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-bold transition shadow-sm active:scale-95"
+                  title="Agregar un nuevo título en la aguja de la línea de tiempo"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Agregar Título</span>
+                </button>
+              ) : (
                 <button
                   onClick={onClearText}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold transition"
                   title="Eliminar o quitar el texto de la pantalla"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Quitar texto</span>
+                  <span>Quitar</span>
                 </button>
+              )}
+            </div>
+
+            {/* List of Titles on Timeline */}
+            {textClips && textClips.length > 0 && (
+              <div className="p-3 bg-neutral-950/80 border border-neutral-800 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-neutral-300">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-400" />
+                    Títulos en la Línea de Tiempo ({textClips.length})
+                  </span>
+                  <span className="text-[10px] text-neutral-500 font-normal">Clic para editar</span>
+                </div>
+                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                  {textClips.map((clip, index) => {
+                    const isSelected = selectedItem?.track === 'text' && selectedItem?.id === clip.id;
+                    const animText =
+                      clip.animation === 'slide_left' ? '⬅️ Lateral' :
+                      clip.animation === 'slide_bottom' ? '⬆️ Abajo' :
+                      clip.animation === 'zoom' ? '🔍 Zoom' :
+                      clip.animation === 'none' ? '✂️ Directo' : '🎬 Fade';
+
+                    return (
+                      <div
+                        key={clip.id}
+                        onClick={() => {
+                          onSeek(clip.start);
+                          onSelectItem({ track: 'text', id: clip.id });
+                        }}
+                        className={`p-2 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition ${
+                          isSelected
+                            ? 'bg-purple-500/25 border-purple-400 text-white font-bold ring-1 ring-purple-400'
+                            : 'bg-neutral-900/60 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-[10px] text-purple-400 font-mono font-bold">#{index + 1}</span>
+                          <span className="truncate">{clip.text}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px] font-mono text-neutral-400">
+                          <span className="px-1 py-0.2 rounded bg-neutral-800 border border-neutral-700 text-neutral-300 text-[9px]">
+                            {animText}
+                          </span>
+                          <span>{clip.start.toFixed(1)}s</span>
+                          {setTextClips && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTextClips((prev) => prev.filter((t) => t.id !== clip.id));
+                                if (selectedItem?.id === clip.id) onSelectItem(null);
+                              }}
+                              className="w-4 h-4 rounded hover:bg-rose-500 hover:text-white text-neutral-500 flex items-center justify-center transition"
+                              title="Eliminar este título"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              <button
-                onClick={() =>
-                  setTextConfig((prev) => ({
-                    ...prev,
-                    enabled: true,
-                    primaryText: prev.primaryText || 'ESCRIBE TU TEXTO',
-                  }))
-                }
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-950/40 transition"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Activar Texto en Pantalla</span>
-              </button>
             )}
 
             <div>
@@ -1106,16 +1172,33 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             {/* Inputs: Main Text */}
             <div className="space-y-3 pt-2 border-t border-neutral-800">
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Frase Principal (Título)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-neutral-300">
+                    Frase Principal (Título)
+                  </label>
+                  {selectedItem?.track === 'text' && (
+                    <span className="text-[10px] text-purple-400 font-bold animate-pulse">
+                      Editando clip seleccionado
+                    </span>
+                  )}
+                </div>
                 <textarea
                   rows={2}
-                  value={textConfig.primaryText}
-                  onChange={(e) =>
-                    setTextConfig((prev) => ({ ...prev, primaryText: e.target.value }))
+                  value={
+                    selectedItem?.track === 'text' && textClips
+                      ? (textClips.find((c) => c.id === selectedItem.id)?.text ?? textConfig.primaryText)
+                      : textConfig.primaryText
                   }
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs text-white focus:border-rose-500 focus:outline-none uppercase font-bold"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTextConfig((prev) => ({ ...prev, primaryText: val, enabled: true }));
+                    if (selectedItem?.track === 'text' && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === selectedItem.id ? { ...c, text: val } : c))
+                      );
+                    }
+                  }}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs text-white focus:border-purple-500 focus:outline-none uppercase font-bold"
                   placeholder="ESCRIBE TU FRASE IMPACTANTE..."
                 />
               </div>
@@ -1126,11 +1209,21 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={textConfig.secondaryText}
-                  onChange={(e) =>
-                    setTextConfig((prev) => ({ ...prev, secondaryText: e.target.value }))
+                  value={
+                    selectedItem?.track === 'text' && textClips
+                      ? (textClips.find((c) => c.id === selectedItem.id)?.secondaryText ?? textConfig.secondaryText)
+                      : textConfig.secondaryText
                   }
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs text-white focus:border-rose-500 focus:outline-none"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTextConfig((prev) => ({ ...prev, secondaryText: val }));
+                    if (selectedItem?.track === 'text' && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === selectedItem.id ? { ...c, secondaryText: val } : c))
+                      );
+                    }
+                  }}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs text-white focus:border-purple-500 focus:outline-none"
                   placeholder="Ej: Life is short. Stop putting limits..."
                 />
               </div>
@@ -1227,6 +1320,81 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </button>
               <div className="text-[10px] text-neutral-500 text-center">
                 💡 Podés arrastrar el título libremente en el video con el mouse.
+              </div>
+            </div>
+
+            {/* Animación del Título (Fade, Slide, Zoom, None) */}
+            <div className="pt-2 border-t border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-neutral-200">
+                  Animación de Entrada y Salida
+                </label>
+                <span className="text-[10px] text-purple-400 font-semibold">Suave & Progresivo</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { id: 'fade', label: '🎬 Desvanecer', desc: 'Aparición suave' },
+                  { id: 'slide_left', label: '⬅️ Lateral', desc: 'Desde un costado' },
+                  { id: 'slide_bottom', label: '⬆️ Desde Abajo', desc: 'Sube a posición' },
+                  { id: 'zoom', label: '🔍 Zoom Suave', desc: 'Escala progresiva' },
+                  { id: 'none', label: '✂️ Corte Directo', desc: 'Sin animación' },
+                ].map((anim) => {
+                  const currentAnim = (selectedItem?.track === 'text' && textClips)
+                    ? (textClips.find(c => c.id === selectedItem.id)?.animation || textConfig.animation || 'fade')
+                    : (textConfig.animation || 'fade');
+                  const isSelected = currentAnim === anim.id;
+
+                  return (
+                    <button
+                      key={anim.id}
+                      type="button"
+                      onClick={() => {
+                        setTextConfig((prev) => ({ ...prev, animation: anim.id as any }));
+                        if (selectedItem?.track === 'text' && setTextClips) {
+                          setTextClips((prev) =>
+                            prev.map((c) => (c.id === selectedItem.id ? { ...c, animation: anim.id as any } : c))
+                          );
+                        }
+                      }}
+                      className={`p-2 rounded-xl text-left border transition ${
+                        isSelected
+                          ? 'border-purple-500 bg-purple-500/15 text-white shadow ring-1 ring-purple-400'
+                          : 'border-neutral-800 bg-neutral-950 text-neutral-400 hover:text-white hover:border-neutral-700'
+                      }`}
+                    >
+                      <div className="text-xs font-bold text-white">{anim.label}</div>
+                      <div className="text-[9px] text-neutral-400">{anim.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Slider de duración de la animación */}
+              <div className="pt-1">
+                <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                  <span>Velocidad de transición</span>
+                  <span className="font-bold text-neutral-200">
+                    {(textConfig.animationDuration ?? 0.5).toFixed(1)}s
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0.2}
+                  max={1.5}
+                  step={0.1}
+                  value={textConfig.animationDuration ?? 0.5}
+                  onChange={(e) => {
+                    const dur = parseFloat(e.target.value);
+                    setTextConfig((prev) => ({ ...prev, animationDuration: dur }));
+                    if (selectedItem?.track === 'text' && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === selectedItem.id ? { ...c, animationDuration: dur } : c))
+                      );
+                    }
+                  }}
+                  className="w-full h-1.5 bg-neutral-800 rounded-lg cursor-pointer accent-purple-500"
+                />
               </div>
             </div>
 
@@ -1356,22 +1524,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   <span>Mostrar cruces y círculos estéticos</span>
                 </label>
 
-                <div className="mt-2">
-                  <label className="block text-xs text-neutral-400 mb-1">
-                    Handle / Usuario (@)
-                  </label>
-                  <input
-                    type="text"
-                    value={textConfig.authorHandle}
-                    onChange={(e) =>
-                      setTextConfig((prev) => ({
-                        ...prev,
-                        authorHandle: e.target.value,
-                      }))
-                    }
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2 text-xs text-white"
-                  />
-                </div>
+
               </div>
             )}
 

@@ -2,11 +2,28 @@ export type AspectRatio = '9:16' | '1:1' | '16:9';
 
 export type TextStyleMode = 'behind_subject' | 'editorial_poster' | 'dynamic_subtitles' | 'classic_subtitles';
 
+export type TextAnimationType = 'none' | 'fade' | 'slide_left' | 'slide_bottom' | 'zoom';
+
 export interface SubtitleItem {
   id: string;
   start: number; // in seconds
   end: number;   // in seconds
   text: string;
+}
+
+export interface TextClipItem {
+  id: string;
+  text: string;
+  secondaryText?: string;
+  start: number; // in seconds on timeline
+  end: number;   // in seconds on timeline
+  position?: { x: number; y: number }; // percentage (0 to 100)
+  fontSize?: number; // percentage of canvas
+  fontFamily?: string;
+  textColor?: string;
+  mode?: TextStyleMode;
+  animation?: TextAnimationType;
+  animationDuration?: number;
 }
 
 export interface TextOverlayConfig {
@@ -48,6 +65,10 @@ export interface TextOverlayConfig {
   subtitleStyle?: 'classic_bottom' | 'giant_headline' | 'behind_subject';
   useSubtitlesAsMainTitle?: boolean; // Dynamic subtitles replace or act as the main title
   subtitleSyncOffset?: number; // Timing offset in seconds to perfectly synchronize with speech
+
+  // Title entrance/exit animation
+  animation?: TextAnimationType; // 'fade' | 'slide_left' | 'slide_bottom' | 'zoom' | 'none'
+  animationDuration?: number; // in seconds (default 0.4)
 }
 
 export interface WatermarkConfig {

@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { 
   MediaAsset, 
-  SubtitleItem, 
+  SubtitleItem,
+  TextClipItem, 
   AudioTrackConfig, 
   AudioClip, 
   VideoClip,
@@ -51,6 +52,9 @@ interface TimelineProps {
   onDeleteAudioClip?: (id: string) => void;
   setSubtitles?: React.Dispatch<React.SetStateAction<SubtitleItem[]>>;
   onAddSubtitleClick?: () => void;
+  textClips?: TextClipItem[];
+  setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
+  onAddTextClipClick?: () => void;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -78,11 +82,108 @@ export const Timeline: React.FC<TimelineProps> = ({
   onDeleteAudioClip,
   setSubtitles,
   onAddSubtitleClick,
+  textClips = [],
+  setTextClips,
+  onAddTextClipClick,
 }) => {
   const trackContainerRef = useRef<HTMLDivElement>(null);
   const [draggingAudioId, setDraggingAudioId] = useState<string | null>(null);
   const dragStartMouseX = useRef<number>(0);
   const dragStartClipStart = useRef<number>(0);
+
+  // Text clip interactive stretching (resizing) & dragging state
+  const [resizingTextId, setResizingTextId] = useState<{ id: string; edge: 'left' | 'right' } | null>(null);
+  const [draggingTextId, setDraggingTextId] = useState<string | null>(null);
+  const dragStartTextMouseX = useRef<number>(0);
+  const dragStartTextTime = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+
+  const handleTextClipMouseDown = (e: React.MouseEvent, clip: TextClipItem) => {
+    if (e.button !== 0 || (e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).dataset.handle) return;
+    e.stopPropagation();
+    onSelectItem({ track: 'text', id: clip.id });
+    setDraggingTextId(clip.id);
+    dragStartTextMouseX.current = e.clientX;
+    dragStartTextTime.current = { start: clip.start, end: clip.end };
+  };
+
+  const handleTextClipResizeMouseDown = (e: React.MouseEvent, clip: TextClipItem, edge: 'left' | 'right') => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onSelectItem({ track: 'text', id: clip.id });
+    setResizingTextId({ id: clip.id, edge });
+    dragStartTextMouseX.current = e.clientX;
+    dragStartTextTime.current = { start: clip.start, end: clip.end };
+  };
+
+  const handleTextClipDoubleClick = (e: React.MouseEvent, clip: TextClipItem) => {
+    e.stopPropagation();
+    const updated = window.prompt('Editar texto del título:', clip.text);
+    if (updated !== null && updated.trim() && setTextClips) {
+      setTextClips((prev) =>
+        prev.map((t) => (t.id === clip.id ? { ...t, text: updated.trim() } : t))
+      );
+    }
+  };
+
+  // Text clip interactive stretching (resizing) & dragging listener
+  useEffect(() => {
+    if (!resizingTextId && !draggingTextId) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!trackContainerRef.current) return;
+      const rect = trackContainerRef.current.getBoundingClientRect();
+      const deltaX = e.clientX - dragStartTextMouseX.current;
+      const totalDur = duration || 15;
+      const deltaSec = (deltaX / rect.width) * totalDur;
+
+      if (resizingTextId && setTextClips) {
+        setTextClips((prev) =>
+          prev.map((t) => {
+            if (t.id !== resizingTextId.id) return t;
+            if (resizingTextId.edge === 'right') {
+              const newEnd = Math.max(
+                dragStartTextTime.current.start + 0.3,
+                Math.min(totalDur, dragStartTextTime.current.end + deltaSec)
+              );
+              return { ...t, end: Math.round(newEnd * 10) / 10 };
+            } else {
+              const newStart = Math.max(
+                0,
+                Math.min(dragStartTextTime.current.end - 0.3, dragStartTextTime.current.start + deltaSec)
+              );
+              return { ...t, start: Math.round(newStart * 10) / 10 };
+            }
+          })
+        );
+      } else if (draggingTextId && setTextClips) {
+        const clipDur = dragStartTextTime.current.end - dragStartTextTime.current.start;
+        const newStart = Math.max(
+          0,
+          Math.min(Math.max(0, totalDur - clipDur), dragStartTextTime.current.start + deltaSec)
+        );
+        const newEnd = newStart + clipDur;
+        setTextClips((prev) =>
+          prev.map((t) =>
+            t.id === draggingTextId
+              ? { ...t, start: Math.round(newStart * 10) / 10, end: Math.round(newEnd * 10) / 10 }
+              : t
+          )
+        );
+      }
+    };
+
+    const handleMouseUp = () => {
+      setResizingTextId(null);
+      setDraggingTextId(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingTextId, draggingTextId, duration, setTextClips]);
 
   // Subtitle interactive stretching (resizing) & dragging state
   const [resizingSubId, setResizingSubId] = useState<{ id: string; edge: 'left' | 'right' } | null>(null);
@@ -137,7 +238,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   const handleSubtitleMouseDown = (e: React.MouseEvent, sub: SubtitleItem) => {
     if (e.button !== 0 || (e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).dataset.handle) return;
     e.stopPropagation();
-    onSelectItem({ track: 'text', id: sub.id });
+    onSelectItem({ track: 'subtitles', id: sub.id });
     setDraggingSubId(sub.id);
     dragStartSubMouseX.current = e.clientX;
     dragStartSubTime.current = { start: sub.start, end: sub.end };
@@ -325,6 +426,18 @@ export const Timeline: React.FC<TimelineProps> = ({
             <span>+ Sonido</span>
           </button>
 
+          {/* Add Text / Title Button */}
+          {onAddTextClipClick && (
+            <button
+              onClick={onAddTextClipClick}
+              className="flex items-center gap-1 px-2.5 py-1 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white rounded-lg border border-purple-500/30 font-semibold transition active:scale-95"
+              title="Agregar un nuevo título en la aguja de reproducción"
+            >
+              <Plus className="w-3.5 h-3.5 text-purple-400" />
+              <span>+ Título</span>
+            </button>
+          )}
+
           {/* Add Subtitle Button */}
           {onAddSubtitleClick && (
             <button
@@ -484,7 +597,106 @@ export const Timeline: React.FC<TimelineProps> = ({
           )}
         </div>
 
-        {/* TRACK 2: Text / Subtitle blocks (Draggable, Stretchable & Editable) */}
+        {/* TRACK 2: Title & Text clips (Draggable, Stretchable, Animated, Behind-Person compatible) */}
+        <div className="h-7 bg-neutral-900/40 rounded-lg border border-neutral-800/60 relative flex items-center overflow-hidden px-2">
+          <Type className="w-3.5 h-3.5 text-purple-400 absolute left-2 pointer-events-none z-20" />
+
+          {textClips.length === 0 ? (
+            <div className="flex items-center ml-8 text-[11px] text-neutral-500 gap-2">
+              <span>Pista de Títulos (sin títulos en la línea de tiempo)</span>
+              {onAddTextClipClick && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddTextClipClick();
+                  }}
+                  className="px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-purple-400 font-semibold border border-neutral-700 hover:border-purple-500/50 transition flex items-center gap-1 text-[10px]"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Agregar Título</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            textClips.map((clip) => {
+              const startPct = ((clip.start) / (duration || 15)) * 100;
+              const widthPct = Math.max(3.0, ((clip.end - clip.start) / (duration || 15)) * 100);
+              const isSelected = selectedItem?.track === 'text' && selectedItem?.id === clip.id;
+
+              const animLabel = 
+                clip.animation === 'slide_left' ? '⬅️ Deslizar' :
+                clip.animation === 'slide_bottom' ? '⬆️ Abajo' :
+                clip.animation === 'zoom' ? '🔍 Zoom' :
+                clip.animation === 'none' ? '✂️ Directo' : '🎬 Fade';
+
+              return (
+                <div
+                  key={clip.id}
+                  data-timeline-block="true"
+                  onMouseDown={(e) => handleTextClipMouseDown(e, clip)}
+                  onDoubleClick={(e) => handleTextClipDoubleClick(e, clip)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectItem({ track: 'text', id: clip.id });
+                  }}
+                  className={`absolute top-0.5 bottom-0.5 rounded px-1.5 flex items-center justify-between text-[10px] font-bold cursor-grab active:cursor-grabbing transition border select-none group ${
+                    isSelected
+                      ? 'bg-purple-500/40 border-purple-300 text-white ring-2 ring-purple-400 shadow-md shadow-purple-950/60 z-20'
+                      : 'bg-purple-500/20 border-purple-500/50 text-purple-200 hover:bg-purple-500/30 z-10'
+                  }`}
+                  style={{ left: `${startPct}%`, width: `${widthPct}%` }}
+                  title="Arrastra para mover • Estira los extremos para duración • Doble clic para editar"
+                >
+                  {/* Left trim / resize handle */}
+                  <div
+                    data-handle="true"
+                    onMouseDown={(e) => handleTextClipResizeMouseDown(e, clip, 'left')}
+                    className="absolute left-0 top-0 bottom-0 w-2 hover:w-3 bg-purple-400/30 hover:bg-purple-400/90 cursor-ew-resize rounded-l flex items-center justify-center transition"
+                    title="↔️ Acortar o estirar inicio"
+                  />
+
+                  <div className="flex items-center gap-1 truncate px-2 pointer-events-none select-none">
+                    <span className="truncate">{clip.text}</span>
+                    <span className="text-[9px] opacity-75 font-normal">({((clip.end - clip.start)).toFixed(1)}s)</span>
+                    <span className="text-[8px] px-1 py-0.2 rounded bg-purple-950/80 border border-purple-500/30 text-purple-300">
+                      {animLabel}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1 flex-shrink-0 z-10">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (setTextClips) {
+                          setTextClips((prev) => prev.filter((t) => t.id !== clip.id));
+                        }
+                        if (selectedItem?.id === clip.id) onSelectItem(null);
+                      }}
+                      className="w-4 h-4 rounded-full bg-neutral-900/90 hover:bg-rose-500 text-neutral-400 hover:text-white flex items-center justify-center transition text-[9px] font-bold"
+                      title="Eliminar este título (Supr)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Right stretch handle */}
+                  <div
+                    data-handle="true"
+                    onMouseDown={(e) => handleTextClipResizeMouseDown(e, clip, 'right')}
+                    className="absolute right-0 top-0 bottom-0 w-2.5 hover:w-4 bg-purple-400/40 hover:bg-purple-400 cursor-ew-resize rounded-r flex items-center justify-center transition shadow-sm group/rhandle"
+                    title="↔️ Estirar duración del título"
+                  >
+                    <div className="w-0.5 h-3 bg-purple-950 rounded-full group-hover/rhandle:bg-black" />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* TRACK 3: Subtitles / Speech blocks (Amber) */}
         <div className="h-7 bg-neutral-900/40 rounded-lg border border-neutral-800/60 relative flex items-center overflow-hidden px-2">
           <Type className="w-3.5 h-3.5 text-amber-400 absolute left-2 pointer-events-none z-20" />
           
@@ -509,7 +721,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             subtitles.map((sub) => {
               const startPct = ((sub.start) / (duration || 15)) * 100;
               const widthPct = Math.max(2.5, ((sub.end - sub.start) / (duration || 15)) * 100);
-              const isSelected = selectedItem?.track === 'text' && selectedItem?.id === sub.id;
+              const isSelected = (selectedItem?.track === 'subtitles' || selectedItem?.track === 'text') && selectedItem?.id === sub.id;
 
               return (
                 <div

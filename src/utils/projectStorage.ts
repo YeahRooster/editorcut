@@ -3,6 +3,7 @@ import type {
   AudioTrackConfig,
   TextOverlayConfig,
   SubtitleItem,
+  TextClipItem,
   TransitionConfig,
   VideoTransitionType
 } from '../types';
@@ -56,6 +57,7 @@ export interface SavedProject {
   audioConfig: AudioTrackConfig;
   textConfig: TextOverlayConfig;
   subtitles: SubtitleItem[];
+  textClips?: TextClipItem[];
   transitionConfig: TransitionConfig;
 
   watermarkConfig: {

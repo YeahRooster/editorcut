@@ -4,7 +4,8 @@ import type {
   TextOverlayConfig, 
   WatermarkConfig, 
   AudioTrackConfig, 
-  SubtitleItem, 
+  SubtitleItem,
+  TextClipItem, 
   MediaAsset,
   VideoClip,
   AudioClip,
@@ -103,6 +104,7 @@ export const App: React.FC = () => {
 
   // 7. Subtitles / Automatic Text Transcription (Empty by default)
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
+  const [textClips, setTextClips] = useState<TextClipItem[]>([]);
 
   // 8. Video Transitions & Intro/Outro Effects
   const [transitionConfig, setTransitionConfig] = useState<TransitionConfig>({
@@ -604,6 +606,7 @@ export const App: React.FC = () => {
         audioConfig,
         textConfig,
         subtitles,
+        textClips,
         transitionConfig,
         watermarkConfig: {
           position: watermarkConfig.position,
@@ -733,6 +736,7 @@ export const App: React.FC = () => {
     if (project.audioConfig) setAudioConfig(project.audioConfig);
     if (project.textConfig) setTextConfig(project.textConfig);
     if (project.subtitles) setSubtitles(project.subtitles);
+    setTextClips(project.textClips || []);
     if (project.transitionConfig) setTransitionConfig(project.transitionConfig);
     setWatermarkConfig({
       url: watermarkUrl,
@@ -758,6 +762,7 @@ export const App: React.FC = () => {
     setMediaAsset(null);
     setAudioClips([]);
     setSubtitles([]);
+    setTextClips([]);
     setCurrentTime(0);
     setIsPlaying(false);
     setTextConfig((prev) => ({
@@ -868,6 +873,7 @@ export const App: React.FC = () => {
           audioConfig,
           textConfig,
           subtitles,
+          textClips,
           transitionConfig,
           watermarkConfig: {
             position: watermarkConfig.position,
@@ -922,6 +928,40 @@ export const App: React.FC = () => {
     };
   }, [currentTime, audioConfig.volume]);
 
+  // Add an animated title clip at playhead position
+  const handleAddTextClip = () => {
+    const start = Math.round(currentTime * 10) / 10;
+    const dur = 3.5;
+    const end = Math.min(Math.round((start + dur) * 10) / 10, duration || 15);
+    const newClip: TextClipItem = {
+      id: 'title-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      text: textConfig.primaryText || 'NUEVO TÍTULO',
+      secondaryText: textConfig.secondaryText || '',
+      start,
+      end: end > start ? end : start + 3,
+      position: { ...textConfig.textPosition },
+      fontSize: textConfig.fontSize,
+      fontFamily: textConfig.fontFamily,
+      textColor: textConfig.textColor,
+      mode: textConfig.mode,
+      animation: textConfig.animation || 'fade',
+      animationDuration: textConfig.animationDuration || 0.5,
+    };
+    setTextClips((prev) => {
+      const next = [...prev, newClip];
+      next.sort((a, b) => a.start - b.start);
+      return next;
+    });
+    setTextConfig((prev) => ({
+      ...prev,
+      enabled: true,
+      primaryText: newClip.text,
+    }));
+    setSelectedTimelineItem({ track: 'text', id: newClip.id });
+    setToastMessage('🔤 Título agregado a la línea de tiempo');
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
   // Split clip at playhead position
   const handleSplitClip = (splitTime: number) => {
     if (selectedTimelineItem?.track === 'audio') {
@@ -938,6 +978,23 @@ export const App: React.FC = () => {
         };
         setAudioClips((prev) => prev.flatMap((c) => (c.id === clip.id ? [clip1, clip2] : [c])));
         setToastMessage(`✂️ Sonido cortado en ${splitTime.toFixed(1)}s`);
+        setTimeout(() => setToastMessage(null), 2500);
+        return;
+      }
+    }
+
+    if (selectedTimelineItem?.track === 'text') {
+      const clip = textClips.find((c) => c.id === selectedTimelineItem.id);
+      if (clip && splitTime > clip.start + 0.2 && splitTime < clip.end - 0.2) {
+        const clip1: TextClipItem = { ...clip, end: splitTime };
+        const clip2: TextClipItem = {
+          ...clip,
+          id: 'title-' + Date.now() + '-split',
+          start: splitTime,
+          end: clip.end,
+        };
+        setTextClips((prev) => prev.flatMap((c) => (c.id === clip.id ? [clip1, clip2] : [c])));
+        setToastMessage(`✂️ Título cortado en ${splitTime.toFixed(1)}s`);
         setTimeout(() => setToastMessage(null), 2500);
         return;
       }
@@ -1134,7 +1191,10 @@ export const App: React.FC = () => {
           musicPlayer.stopAllClips();
         }
         setToastMessage('🗑️ Pista de sonido eliminada');
-      } else if (track === 'subtitles' || track === 'text') {
+      } else if (track === 'text') {
+        setTextClips((prev) => prev.filter((t) => t.id !== id));
+        setToastMessage('🗑️ Título eliminado');
+      } else if (track === 'subtitles') {
         setSubtitles((prev) => prev.filter((s) => s.id !== id));
         setToastMessage('🗑️ Subtítulo eliminado');
       } else if (track === 'watermark') {
@@ -1766,6 +1826,9 @@ export const App: React.FC = () => {
           setTransitionConfig={setTransitionConfig}
           selectedItem={selectedTimelineItem}
           onSelectItem={setSelectedTimelineItem}
+          textClips={textClips}
+          setTextClips={setTextClips}
+          onAddTextClip={handleAddTextClip}
         />
 
         {/* Center Live Stage Canvas */}
@@ -1809,6 +1872,9 @@ export const App: React.FC = () => {
         subtitles={subtitles}
         setSubtitles={setSubtitles}
         onAddSubtitleClick={handleAddSubtitle}
+        textClips={textClips}
+        setTextClips={setTextClips}
+        onAddTextClipClick={handleAddTextClip}
         audioClips={audioClips}
         setAudioClips={setAudioClips}
         onDeleteAudioClip={handleDeleteAudioClip}

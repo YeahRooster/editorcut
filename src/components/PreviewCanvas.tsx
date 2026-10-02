@@ -3,10 +3,12 @@ import type {
   AspectRatio, 
   TextOverlayConfig, 
   WatermarkConfig, 
-  SubtitleItem, 
+  SubtitleItem,
+  TextClipItem, 
   MediaAsset,
   VideoClip,
-  TransitionConfig
+  TransitionConfig,
+  TimelineSelection
 } from '../types';
 import { selfieSegmenter } from '../utils/segmentation';
 import { 
@@ -33,6 +35,9 @@ interface PreviewCanvasProps {
   onSeek: (time: number) => void;
   textConfig: TextOverlayConfig;
   setTextConfig: React.Dispatch<React.SetStateAction<TextOverlayConfig>>;
+  textClips?: TextClipItem[];
+  setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
+  selectedTimelineItem?: TimelineSelection | null;
   watermarkConfig: WatermarkConfig;
   setWatermarkConfig: React.Dispatch<React.SetStateAction<WatermarkConfig>>;
   subtitles: SubtitleItem[];
@@ -61,6 +66,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   onSeek,
   textConfig,
   setTextConfig,
+  textClips = [],
+  setTextClips,
+  selectedTimelineItem,
   watermarkConfig,
   setWatermarkConfig,
   subtitles,
@@ -98,6 +106,16 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   // Double-click inline editing states
   const [editingSubtitle, setEditingSubtitle] = useState<{ id: string; text: string } | null>(null);
   const [editingTitle, setEditingTitle] = useState<boolean>(false);
+  // Active text clip helper for mouse interaction & editing
+  const getActiveTextClip = () => {
+    return textClips && textClips.length > 0
+      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+         (!isPlaying && selectedTimelineItem?.track === 'text' ? textClips.find((c) => c.id === selectedTimelineItem.id) || textClips[0] : null))
+      : null;
+  };
+  const activeInteractiveTextClip = getActiveTextClip();
+  const activeInteractiveTitleText = activeInteractiveTextClip ? activeInteractiveTextClip.text : textConfig.primaryText;
+
   const [titleEditText, setTitleEditText] = useState<string>('');
 
   // Drag anchor refs for smooth resizing without jumps
@@ -437,40 +455,111 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       (textConfig.subtitleStyle === 'behind_subject' || textConfig.useSubtitlesAsMainTitle);
 
     // -------------------------------------------------------------
+    // ACTIVE TITLE & TEXT ANIMATION ENGINE
+    // -------------------------------------------------------------
+    const activeTextClip = textClips && textClips.length > 0
+      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+         (!isPlaying && selectedTimelineItem?.track === 'text' ? textClips.find((c) => c.id === selectedTimelineItem.id) || textClips[0] : null))
+      : null;
+
+    const hasActiveTitle = activeTextClip
+      ? activeTextClip.text.trim().length > 0
+      : (textConfig.enabled && textConfig.primaryText && textConfig.primaryText.trim().length > 0);
+
+    const currentTitleText = activeTextClip ? activeTextClip.text : textConfig.primaryText;
+    const currentSecondaryText = activeTextClip?.secondaryText !== undefined ? activeTextClip.secondaryText : textConfig.secondaryText;
+    const currentTitlePos = activeTextClip?.position || textConfig.textPosition || { x: 50, y: 30 };
+    const currentFontSize = activeTextClip?.fontSize ?? textConfig.fontSize ?? 28;
+    const currentFontFamily = activeTextClip?.fontFamily || textConfig.fontFamily || 'Bebas Neue';
+    const currentTextColor = activeTextClip?.textColor || textConfig.textColor || '#ffffff';
+    const currentMode = activeTextClip?.mode || textConfig.mode || 'behind_subject';
+    const currentAnimation = activeTextClip?.animation || textConfig.animation || 'fade';
+    const currentAnimDur = Math.max(0.1, activeTextClip?.animationDuration ?? textConfig.animationDuration ?? 0.5);
+
+    let animOpacity = 1;
+    let animOffsetX = 0;
+    let animOffsetY = 0;
+    let animScale = 1;
+
+    if (activeTextClip) {
+      const timeFromStart = Math.max(0, currentTime - activeTextClip.start);
+      const timeToEnd = Math.max(0, activeTextClip.end - currentTime);
+
+      if (currentAnimation !== 'none') {
+        const inProgress = Math.min(1, timeFromStart / currentAnimDur);
+        const outProgress = Math.min(1, timeToEnd / currentAnimDur);
+
+        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+        const inEase = easeOutCubic(inProgress);
+        const outEase = easeOutCubic(outProgress);
+
+        animOpacity = Math.min(inEase, outEase);
+
+        if (currentAnimation === 'slide_left') {
+          if (inProgress < 1) {
+            animOffsetX = (1 - inEase) * (-cWidth * 0.22);
+          } else if (outProgress < 1) {
+            animOffsetX = (1 - outEase) * (cWidth * 0.15);
+          }
+        } else if (currentAnimation === 'slide_bottom') {
+          if (inProgress < 1) {
+            animOffsetY = (1 - inEase) * (cHeight * 0.12);
+          } else if (outProgress < 1) {
+            animOffsetY = (1 - outEase) * (cHeight * 0.08);
+          }
+        } else if (currentAnimation === 'zoom') {
+          if (inProgress < 1) {
+            animScale = 0.75 + 0.25 * inEase;
+          } else if (outProgress < 1) {
+            animScale = 1 + (1 - outEase) * 0.08;
+          }
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
     // LAYER: BEHIND SUBJECT TEXT (Curug Sawer / Just Do It style)
     // -------------------------------------------------------------
-    const hasStaticTitle = textConfig.primaryText && textConfig.primaryText.trim().length > 0;
+    const hasStaticTitle = hasActiveTitle;
     const hasDynamicSubAsTitle = textConfig.useSubtitlesAsMainTitle && displaySub && displaySub.text.trim().length > 0;
     const hasSeparateSubBehind = !textConfig.useSubtitlesAsMainTitle && textConfig.subtitleStyle === 'behind_subject' && displaySub && displaySub.text.trim().length > 0;
 
-    if (textConfig.enabled && textConfig.mode === 'behind_subject' && (hasStaticTitle || hasDynamicSubAsTitle || hasSeparateSubBehind)) {
-      // 1. Render primary headline behind the person (either static title or dynamic voice subtitle taking title's spot)
+    if (currentMode === 'behind_subject' && (hasStaticTitle || hasDynamicSubAsTitle || hasSeparateSubBehind)) {
+      // 1. Render primary headline behind the person (with smooth animation entrance/exit)
       const textToRender = textConfig.useSubtitlesAsMainTitle
-        ? (displaySub?.text || textConfig.primaryText || '')
-        : textConfig.primaryText;
+        ? (displaySub?.text || currentTitleText || '')
+        : currentTitleText;
 
       if (textToRender && textToRender.trim().length > 0) {
-        const textX = (cWidth * textConfig.textPosition.x) / 100;
-        const textY = (cHeight * textConfig.textPosition.y) / 100;
+        const textX = (cWidth * currentTitlePos.x) / 100;
+        const textY = (cHeight * currentTitlePos.y) / 100;
         const textAlign = textConfig.textAlign || 'center';
 
         ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
+
+        if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
+          ctx.translate(textX + animOffsetX, textY + animOffsetY);
+          ctx.scale(animScale, animScale);
+          ctx.translate(-textX, -textY);
+        }
+
         ctx.textAlign = textAlign;
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = textConfig.textColor;
+        ctx.fillStyle = currentTextColor;
 
         // Primary massive text
-        const computedFontSize = Math.round(cWidth * (textConfig.fontSize / 100));
-        ctx.font = `900 ${computedFontSize}px "${textConfig.fontFamily || 'Bebas Neue'}", sans-serif`;
+        const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
+        ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
 
         // Multi-line support if text has newlines or spaces
         const lines = textToRender.split('\n');
         const lineHeight = computedFontSize * 0.95;
         const startY = textY - ((lines.length - 1) * lineHeight) / 2;
 
-        lines.forEach((line, index) => {
+        lines.forEach((line: string, index: number) => {
           // Subtle soft shadow behind the letters
-          ctx.shadowColor = 'rgba(0,0,0,0.7)';
+          ctx.shadowColor = 'rgba(0,0,0,0.75)';
           ctx.shadowBlur = 18;
           ctx.fillText(line.toUpperCase(), textX, startY + index * lineHeight);
         });
@@ -502,7 +591,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // LAYER: PERSON FOREGROUND CUTOUT (MediaPipe segmentation)
     // Enhanced with sub-pixel feathering and anti-aliasing
     // -------------------------------------------------------------
-    if (activeSource && textConfig.segmentationActive && textConfig.mode === 'behind_subject') {
+    if (activeSource && textConfig.segmentationActive && currentMode === 'behind_subject') {
       selfieSegmenter.drawPersonCutout(
         ctx,
         activeSource,
@@ -520,14 +609,14 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
 
       // Small secondary text ON TOP of the person (like in the Just Do It hiking photo)
-      if (textConfig.secondaryText) {
+      if (currentSecondaryText && currentMode === 'behind_subject') {
         ctx.save();
         ctx.textAlign = 'center';
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0,0,0,0.8)';
         ctx.shadowBlur = 10;
         ctx.font = '600 32px Montserrat, sans-serif';
-        ctx.fillText(textConfig.secondaryText, cWidth / 2, cHeight * 0.22);
+        ctx.fillText(currentSecondaryText, cWidth / 2, cHeight * 0.22);
 
         // Mountain or decorative icon placeholder
         ctx.strokeStyle = '#ffffff';
@@ -602,49 +691,46 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         ctx.fillText('X', cWidth / 3 - 80, (cHeight * 2) / 3 + 10);
       }
 
-      // 3. Main Bold Editorial Typography ("RULE OF THIRDS")
-      const textX = (cWidth * textConfig.textPosition.x) / 100;
-      const textY = (cHeight * textConfig.textPosition.y) / 100;
+      // 3. Main Bold Editorial Typography ("RULE OF THIRDS" - Pure, clean, animated)
+      const textX = (cWidth * currentTitlePos.x) / 100;
+      const textY = (cHeight * currentTitlePos.y) / 100;
 
-      ctx.fillStyle = textConfig.textColor;
-      ctx.textAlign = textConfig.textAlign || 'left';
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
 
-      // Small hashtag or code header
-      if (textConfig.badgeDateText || textConfig.showCrosshairs) {
-        ctx.font = `700 36px "${textConfig.fontFamily || 'Bebas Neue'}", sans-serif`;
-        ctx.fillText('#C051', textX, textY - 140);
+      if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
+        ctx.translate(textX + animOffsetX, textY + animOffsetY);
+        ctx.scale(animScale, animScale);
+        ctx.translate(-textX, -textY);
       }
 
-      // Massive headline
-      const computedFontSize = Math.round(cWidth * (textConfig.fontSize / 100));
-      ctx.font = `900 ${computedFontSize}px "${textConfig.fontFamily || 'Bebas Neue'}", sans-serif`;
-      const lines = textConfig.primaryText.split('\n');
-      lines.forEach((line, index) => {
+      ctx.fillStyle = currentTextColor;
+      ctx.textAlign = textConfig.textAlign || 'left';
+
+      // Massive headline (Pure title typography)
+      const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
+      ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
+      const lines = (currentTitleText || '').split('\n');
+      lines.forEach((line: string, index: number) => {
+        ctx.shadowColor = 'rgba(0,0,0,0.75)';
+        ctx.shadowBlur = 14;
         ctx.fillText(line.toUpperCase(), textX, textY + index * (computedFontSize * 0.95));
       });
 
-      // Sub-description block
-      if (textConfig.secondaryText) {
-        ctx.font = '700 28px Bebas Neue, Montserrat, sans-serif';
+      // Sub-description block (only if user provided secondary text)
+      if (currentSecondaryText && currentSecondaryText.trim().length > 0) {
+        ctx.font = `700 28px "${currentFontFamily}", Montserrat, sans-serif`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        const subLines = textConfig.secondaryText.split('\n');
-        subLines.forEach((sLine, sIdx) => {
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 8;
+        const subLines = currentSecondaryText.split('\n');
+        subLines.forEach((sLine: string, sIdx: number) => {
           ctx.fillText(sLine.toUpperCase(), textX, textY + lines.length * (computedFontSize * 0.95) + 30 + sIdx * 34);
         });
       }
+      ctx.restore();
 
-      // Metadata elements (Date and Handle)
-      ctx.font = '700 32px Space Grotesk, sans-serif';
-      ctx.fillText(textConfig.authorHandle || '@addaube', 80, cHeight - 80);
 
-      // Date vertical stack
-      ctx.textAlign = 'right';
-      ctx.fillText('04', cWidth - 80, (cHeight * 2) / 3 + 40);
-      ctx.fillText('-', cWidth - 80, (cHeight * 2) / 3 + 80);
-      ctx.fillText('08', cWidth - 80, (cHeight * 2) / 3 + 120);
-      ctx.fillText('-', cWidth - 80, (cHeight * 2) / 3 + 160);
-      ctx.fillText('20', cWidth - 80, (cHeight * 2) / 3 + 200);
-      ctx.fillText('25', cWidth - 80, (cHeight * 2) / 3 + 240);
 
       // 4. Frosted Glass Info Pill (Reference 2 style)
       if (textConfig.showFrostedCard && textConfig.frostedGlassCaption) {
@@ -672,6 +758,53 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       }
 
       ctx.restore();
+    }
+
+    // -------------------------------------------------------------
+    // LAYER: STANDARD / DYNAMIC TITLE OVERLAY (Foreground text for other modes)
+    // -------------------------------------------------------------
+    if (currentMode !== 'behind_subject' && currentMode !== 'editorial_poster' && hasActiveTitle) {
+      if (currentTitleText && currentTitleText.trim().length > 0) {
+        const textX = (cWidth * currentTitlePos.x) / 100;
+        const textY = (cHeight * currentTitlePos.y) / 100;
+        const textAlign = textConfig.textAlign || 'center';
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
+
+        if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
+          ctx.translate(textX + animOffsetX, textY + animOffsetY);
+          ctx.scale(animScale, animScale);
+          ctx.translate(-textX, -textY);
+        }
+
+        ctx.textAlign = textAlign;
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = currentTextColor;
+
+        const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
+        ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
+
+        const lines = currentTitleText.split('\n');
+        const lineHeight = computedFontSize * 0.95;
+        const startY = textY - ((lines.length - 1) * lineHeight) / 2;
+
+        lines.forEach((line: string, index: number) => {
+          ctx.shadowColor = 'rgba(0,0,0,0.85)';
+          ctx.shadowBlur = 16;
+          ctx.fillText(line.toUpperCase(), textX, startY + index * lineHeight);
+        });
+
+        if (currentSecondaryText && currentSecondaryText.trim().length > 0) {
+          ctx.font = '600 28px Montserrat, sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(0,0,0,0.7)';
+          ctx.shadowBlur = 10;
+          ctx.fillText(currentSecondaryText, textX, startY + lines.length * lineHeight + 20);
+        }
+
+        ctx.restore();
+      }
     }
 
     // -------------------------------------------------------------
@@ -787,9 +920,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // Visual indicator outline for Title if hovered or dragged or selected (NEVER during export)
     const isInteractingTitle =
       !isExporting &&
-      textConfig.enabled &&
-      textConfig.primaryText &&
-      textConfig.primaryText.trim().length > 0 &&
+      hasActiveTitle &&
+      currentTitleText &&
+      currentTitleText.trim().length > 0 &&
       (hoveredElement === 'title' ||
         hoveredElement === 'title_resize' ||
         dragMode === 'title' ||
@@ -798,11 +931,11 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
     if (isInteractingTitle) {
       ctx.save();
-      const titleX = (cWidth * textConfig.textPosition.x) / 100;
-      const titleY = (cHeight * textConfig.textPosition.y) / 100;
-      const lines = textConfig.primaryText.split('\n');
-      const maxLen = Math.max(...lines.map((l) => l.length));
-      const fontSizePx = cWidth * ((textConfig.fontSize || 28) / 100);
+      const titleX = (cWidth * currentTitlePos.x) / 100;
+      const titleY = (cHeight * currentTitlePos.y) / 100;
+      const lines = currentTitleText.split('\n');
+      const maxLen = Math.max(...lines.map((l: string) => l.length));
+      const fontSizePx = cWidth * ((currentFontSize || 28) / 100);
       const approxWPx = maxLen * fontSizePx * 0.55 + 24;
       const approxHPx = lines.length * fontSizePx + 20;
 
@@ -1079,13 +1212,22 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
 
     // 3. Title box & corner handle
+    const activeClipHit = textClips && textClips.length > 0
+      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+         (!isPlaying && selectedTimelineItem?.track === 'text' ? textClips.find((c) => c.id === selectedTimelineItem.id) || textClips[0] : null))
+      : null;
+    const hitTitleText = activeClipHit ? activeClipHit.text : textConfig.primaryText;
+    const hitTitlePos = activeClipHit?.position || textConfig.textPosition || { x: 50, y: 30 };
+    const hitTitleFontSize = activeClipHit?.fontSize ?? textConfig.fontSize ?? 28;
+    const hasHitTitle = activeClipHit ? hitTitleText.trim().length > 0 : (textConfig.enabled && hitTitleText && hitTitleText.trim().length > 0);
+
     let titleBox: { x: number; y: number; w: number; h: number } | null = null;
     let titleHandle: { x: number; y: number; r: number } | null = null;
-    if (textConfig.enabled && textConfig.primaryText && textConfig.primaryText.trim().length > 0) {
-      const titlePos = textConfig.textPosition || { x: 50, y: 30 };
-      const lines = textConfig.primaryText.split('\n');
-      const maxLen = Math.max(...lines.map((l) => l.length));
-      const fontSizePx = cWidth * ((textConfig.fontSize || 28) / 100);
+    if (hasHitTitle && hitTitleText && hitTitleText.trim().length > 0) {
+      const titlePos = hitTitlePos;
+      const lines = hitTitleText.split('\n');
+      const maxLen = Math.max(...lines.map((l: string) => l.length));
+      const fontSizePx = cWidth * ((hitTitleFontSize || 28) / 100);
       const approxWPx = maxLen * fontSizePx * 0.55 + 24;
       const approxHPx = lines.length * fontSizePx + 20;
 
@@ -1116,7 +1258,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
 
     return { watermarkBox, watermarkHandle, subtitleBox, titleBox, titleHandle };
-  }, [cWidth, cHeight, watermarkConfig, textConfig, subtitles, currentTime]);
+  }, [cWidth, cHeight, watermarkConfig, textConfig, subtitles, currentTime, textClips, selectedTimelineItem]);
 
   // Interactive mouse dragging for Title, Subtitle, and Logo (move & resize)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1283,6 +1425,11 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         ...prev,
         fontSize: newFontSize,
       }));
+      if (setTextClips && activeInteractiveTextClip) {
+        setTextClips((prev) =>
+          prev.map((c) => (c.id === activeInteractiveTextClip.id ? { ...c, fontSize: newFontSize } : c))
+        );
+      }
     } else if (dragMode === 'watermark_move') {
       const newX = Math.max(5, Math.min(95, xPct - dragOffset.x));
       const newY = Math.max(5, Math.min(95, yPct - dragOffset.y));
@@ -1300,10 +1447,16 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     } else if (dragMode === 'title') {
       const newX = Math.max(5, Math.min(95, xPct - dragOffset.x));
       const newY = Math.max(5, Math.min(95, yPct - dragOffset.y));
+      const newPos = { x: Math.round(newX), y: Math.round(newY) };
       setTextConfig((prev) => ({
         ...prev,
-        textPosition: { x: Math.round(newX), y: Math.round(newY) },
+        textPosition: newPos,
       }));
+      if (setTextClips && activeInteractiveTextClip) {
+        setTextClips((prev) =>
+          prev.map((c) => (c.id === activeInteractiveTextClip.id ? { ...c, position: newPos } : c))
+        );
+      }
     }
   };
 
@@ -1352,7 +1505,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         yPct >= titleBox.y &&
         yPct <= titleBox.y + titleBox.h
       ) {
-        setTitleEditText(textConfig.primaryText || '');
+        setTitleEditText(activeInteractiveTitleText || '');
         setEditingTitle(true);
         return;
       }
@@ -1553,6 +1706,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     setTextConfig((prev) => ({ ...prev, primaryText: titleEditText }));
+                    if (setTextClips && activeInteractiveTextClip) {
+                      setTextClips((prev) => prev.map((c) => c.id === activeInteractiveTextClip.id ? { ...c, text: titleEditText } : c));
+                    }
                     setEditingTitle(false);
                   } else if (e.key === 'Escape') {
                     setEditingTitle(false);
@@ -1578,6 +1734,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                     type="button"
                     onClick={() => {
                       setTextConfig((prev) => ({ ...prev, primaryText: titleEditText }));
+                      if (setTextClips && activeInteractiveTextClip) {
+                        setTextClips((prev) => prev.map((c) => c.id === activeInteractiveTextClip.id ? { ...c, text: titleEditText } : c));
+                      }
                       setEditingTitle(false);
                     }}
                     className="px-4 py-1.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white shadow-lg shadow-sky-950/50 transition"
