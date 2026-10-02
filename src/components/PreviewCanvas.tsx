@@ -249,6 +249,20 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         }
       }
 
+      // Advance to next video clip smoothly if this clip has reached its end
+      if (isPlaying && activeClip && videoClips && videoClips.length > 1) {
+        const clipIdx = videoClips.findIndex((c) => c.id === activeClip?.id);
+        const isNearClipEnd =
+          activeVideoEl.ended ||
+          activeVideoEl.currentTime >= (activeClip.duration || 0) - 0.05;
+        if (isNearClipEnd && clipIdx >= 0 && clipIdx < videoClips.length - 1) {
+          const nextClip = videoClips[clipIdx + 1];
+          if (onTimeUpdate) {
+            onTimeUpdate(nextClip.start);
+          }
+        }
+      }
+
       // Check if video reached total timeline duration
       const currentReal = clipStart + activeVideoEl.currentTime;
       if (isPlaying && duration > 0 && currentReal >= duration) {

@@ -32,7 +32,8 @@ import {
   Zap,
   Bell,
   Flame,
-  Repeat
+  Repeat,
+  RefreshCw
 } from 'lucide-react';
 import { musicPlayer, createSFXBuffer, audioBufferToWavBlob, type SFXPreset } from '../utils/audioSynth';
 import { speechService } from '../utils/speechRecognition';
@@ -107,7 +108,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const [segmentationModel, setSegmentationModel] = useState<0 | 1>(selfieSegmenter.getModel());
   const [refineMode, setRefineModeState] = useState<'enhanced' | 'direct'>(selfieSegmenter.getRefineMode());
 
-  // File upload handler for media
+  // File upload handler for media (automatically appends if a video already exists)
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -116,18 +117,34 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     const isVideo = file.type.startsWith('video');
 
     if (isVideo) {
+      if (videoClips.length > 0 || mediaAsset?.type === 'video') {
+        onAddVideoClip(file);
+        e.target.value = '';
+        return;
+      }
       const v = document.createElement('video');
       v.src = url;
       v.onloadedmetadata = () => {
-        setMediaAsset({
+        const dur = v.duration || 15;
+        const newAsset: MediaAsset = {
           id: 'media-' + Date.now(),
           name: file.name,
           type: 'video',
           url,
-          duration: v.duration || 15,
+          duration: dur,
           aspectRatio: v.videoWidth / v.videoHeight || 9 / 16,
           file,
-        });
+        };
+        setMediaAsset(newAsset);
+        setVideoClips([{
+          id: newAsset.id,
+          name: newAsset.name,
+          url: newAsset.url,
+          duration: newAsset.duration,
+          start: 0,
+          aspectRatio: newAsset.aspectRatio,
+          file: newAsset.file,
+        }]);
       };
     } else {
       setMediaAsset({
@@ -140,6 +157,54 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         file,
       });
     }
+    e.target.value = '';
+  };
+
+  // Explicit replace video handler
+  const handleReplaceVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith('video');
+
+    if (isVideo) {
+      const v = document.createElement('video');
+      v.src = url;
+      v.onloadedmetadata = () => {
+        const dur = v.duration || 15;
+        const newAsset: MediaAsset = {
+          id: 'media-' + Date.now(),
+          name: file.name,
+          type: 'video',
+          url,
+          duration: dur,
+          aspectRatio: v.videoWidth / v.videoHeight || 9 / 16,
+          file,
+        };
+        setMediaAsset(newAsset);
+        setVideoClips([{
+          id: newAsset.id,
+          name: newAsset.name,
+          url: newAsset.url,
+          duration: newAsset.duration,
+          start: 0,
+          aspectRatio: newAsset.aspectRatio,
+          file: newAsset.file,
+        }]);
+      };
+    } else {
+      setMediaAsset({
+        id: 'media-' + Date.now(),
+        name: file.name,
+        type: 'image',
+        url,
+        duration: 15,
+        aspectRatio: 9 / 16,
+        file,
+      });
+    }
+    e.target.value = '';
   };
 
   // Watermark upload handler
@@ -528,52 +593,79 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {activeTab === 'media' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-sm font-bold text-neutral-200 mb-1">Cargar tu archivo</h2>
+              <h2 className="text-sm font-bold text-neutral-200 mb-1">
+                {videoClips.length > 0 || mediaAsset ? 'Videos del Proyecto' : 'Cargar tu archivo'}
+              </h2>
               <p className="text-xs text-neutral-400 mb-3">
-                Arrastra cualquier video (.mp4, .mov) o foto de tu computadora.
+                {videoClips.length > 0 || mediaAsset
+                  ? 'Suma varios videos seguidos a la historia o reemplaza el actual.'
+                  : 'Arrastra cualquier video (.mp4, .mov) o foto de tu computadora.'}
               </p>
 
-              <label className="border-2 border-dashed border-neutral-700 hover:border-rose-500/60 bg-neutral-950/40 hover:bg-neutral-950 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition group">
-                <Film className="w-7 h-7 text-neutral-500 group-hover:text-rose-400 mb-1.5 transition" />
-                <span className="text-xs font-semibold text-neutral-300 group-hover:text-white">
-                  Toca aquí para elegir archivo principal
-                </span>
-                <span className="text-[11px] text-neutral-500 mt-0.5">MP4, MOV, JPG, PNG</span>
-                <input
-                  type="file"
-                  accept="video/*,image/*"
-                  onChange={handleMediaUpload}
-                  className="hidden"
-                />
-              </label>
+              {!(videoClips.length > 0 || mediaAsset) ? (
+                <label className="border-2 border-dashed border-neutral-700 hover:border-rose-500/60 bg-neutral-950/40 hover:bg-neutral-950 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition group">
+                  <Film className="w-7 h-7 text-neutral-500 group-hover:text-rose-400 mb-1.5 transition" />
+                  <span className="text-xs font-semibold text-neutral-300 group-hover:text-white">
+                    Toca aquí para elegir tu video
+                  </span>
+                  <span className="text-[11px] text-neutral-500 mt-0.5">MP4, MOV, JPG, PNG</span>
+                  <input
+                    type="file"
+                    accept="video/*,image/*"
+                    onChange={handleMediaUpload}
+                    className="hidden"
+                  />
+                </label>
+              ) : (
+                <div className="space-y-2.5">
+                  {/* Botón destacado: Sumar otro video al lado */}
+                  <label className="border-2 border-dashed border-sky-500/60 hover:border-sky-400 bg-sky-500/10 hover:bg-sky-500/20 rounded-2xl p-3.5 flex items-center justify-center gap-2 cursor-pointer transition group shadow-md shadow-sky-950/20">
+                    <Plus className="w-4 h-4 text-sky-400 group-hover:scale-110 transition flex-shrink-0" />
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-sky-200 group-hover:text-white block">
+                        + Sumar otro video al lado (secuencia)
+                      </span>
+                      <span className="text-[10px] text-sky-400/80 block">
+                        Se añade al final sin borrar el que ya tienes
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="video/*,image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onAddVideoClip(file);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {/* Botón secundario: Reemplazar video actual */}
+                  <label className="w-full py-2 px-3 border border-neutral-800 hover:border-neutral-700 bg-neutral-900/60 hover:bg-neutral-900 rounded-xl flex items-center justify-center gap-1.5 text-xs text-neutral-400 hover:text-neutral-200 cursor-pointer transition">
+                    <RefreshCw className="w-3.5 h-3.5 text-neutral-500" />
+                    <span>Reemplazar video actual por otro nuevo</span>
+                    <input
+                      type="file"
+                      accept="video/*,image/*"
+                      onChange={handleReplaceVideoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
             </div>
 
-            {/* SECCIÓN: SUMAR OTRO VIDEO AL LADO (MULTICLIP) */}
-            <div className="pt-2 border-t border-neutral-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-neutral-200 flex items-center gap-1.5">
-                  <Film className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Videos en la Historia ({videoClips.length || (mediaAsset ? 1 : 0)})</span>
-                </h3>
-                <span className="text-[10px] text-neutral-500">Consecutivos</span>
-              </div>
-
-              {/* Botón destacado para sumar otro video al lado */}
-              <label className="border-2 border-dashed border-sky-500/50 hover:border-sky-400 bg-sky-500/10 hover:bg-sky-500/15 rounded-2xl p-3.5 flex items-center justify-center gap-2 cursor-pointer transition group shadow-sm">
-                <Plus className="w-4 h-4 text-sky-400 group-hover:scale-110 transition" />
-                <span className="text-xs font-bold text-sky-200 group-hover:text-white">
-                  + Sumar otro video al lado (sin reemplazar)
-                </span>
-                <input
-                  type="file"
-                  accept="video/*,image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) onAddVideoClip(file);
-                  }}
-                  className="hidden"
-                />
-              </label>
+            {/* SECCIÓN: LISTA DE VIDEOS (MULTICLIP) */}
+            {(videoClips.length > 0 || mediaAsset) && (
+              <div className="pt-2 border-t border-neutral-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-neutral-200 flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Videos en la Historia ({videoClips.length || (mediaAsset ? 1 : 0)})</span>
+                  </h3>
+                  <span className="text-[10px] text-neutral-500">Consecutivos</span>
+                </div>
 
               {/* Lista de clips cargados */}
               {(videoClips.length > 0 ? videoClips : (mediaAsset ? [mediaAsset] : [])).length > 0 && (
@@ -623,6 +715,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </div>
               )}
             </div>
+          )}
 
             {/* SECCIÓN: TRANSICIONES Y EFECTOS DE VIDEO */}
             <div className="pt-2 border-t border-neutral-800 space-y-3">

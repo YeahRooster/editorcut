@@ -135,11 +135,61 @@ export const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Dynamic Total Timeline Duration calculated across all clips
   const duration = videoClips.length > 0
     ? videoClips.reduce((max, c) => Math.max(max, c.start + c.duration), 0)
     : (mediaAsset?.duration || 15);
+
+  // Append another video clip next to the existing one ("Sumar otro video al lado")
+  const handleAddVideoClip = useCallback((file: File) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.src = url;
+    v.onloadedmetadata = () => {
+      const clipDur = v.duration || 10;
+      setVideoClips((prev) => {
+        const currentClips = prev.length > 0
+          ? prev
+          : (mediaAsset ? [{
+              id: mediaAsset.id,
+              name: mediaAsset.name,
+              url: mediaAsset.url,
+              duration: mediaAsset.duration,
+              start: 0,
+              file: mediaAsset.file,
+              aspectRatio: mediaAsset.aspectRatio || 9 / 16,
+            } as VideoClip] : []);
+
+        const lastClip = currentClips[currentClips.length - 1];
+        const start = lastClip ? (lastClip.start + lastClip.duration) : 0;
+        const newClip: VideoClip = {
+          id: 'clip-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          name: file.name,
+          url,
+          duration: clipDur,
+          start,
+          file,
+          aspectRatio: v.videoWidth / v.videoHeight || 9 / 16,
+        };
+        if (!mediaAsset) {
+          setMediaAsset({
+            id: newClip.id,
+            name: file.name,
+            type: 'video',
+            url,
+            duration: clipDur,
+            file,
+            aspectRatio: newClip.aspectRatio || 9 / 16,
+          });
+        }
+        return [...currentClips, newClip];
+      });
+      setToastMessage('🎬 Video sumado a la línea de tiempo junto al actual');
+      setTimeout(() => setToastMessage(null), 2500);
+    };
+  }, [mediaAsset]);
 
   // Process incoming file (either from OS Drag & Drop or File Input)
   const processIncomingFile = useCallback((file: File) => {
@@ -149,6 +199,11 @@ export const App: React.FC = () => {
     const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(file.name);
 
     if (isVideo) {
+      // If a video is already loaded, append it consecutively rather than replacing!
+      if (videoClips.length > 0 || mediaAsset?.type === 'video') {
+        handleAddVideoClip(file);
+        return;
+      }
       const v = document.createElement('video');
       v.src = url;
       v.onloadedmetadata = () => {
@@ -223,7 +278,7 @@ export const App: React.FC = () => {
         setSelectedTimelineItem({ track: 'watermark', id: 'watermark' });
       }
     }
-  }, [mediaAsset, videoClips.length, currentTime, audioConfig.volume]);
+  }, [mediaAsset, videoClips.length, currentTime, audioConfig.volume, handleAddVideoClip]);
 
   // Global OS file drag & drop handlers
   useEffect(() => {
@@ -362,42 +417,6 @@ export const App: React.FC = () => {
     musicPlayer.seekClips(audioClips, time);
   };
 
-  // Append another video clip next to the existing one ("Sumar otro video al lado")
-  const handleAddVideoClip = useCallback((file: File) => {
-    const url = URL.createObjectURL(file);
-    const v = document.createElement('video');
-    v.src = url;
-    v.onloadedmetadata = () => {
-      const clipDur = v.duration || 10;
-      setVideoClips((prev) => {
-        const lastClip = prev[prev.length - 1];
-        const start = lastClip ? lastClip.start + lastClip.duration : 0;
-        const newClip: VideoClip = {
-          id: 'clip-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-          name: file.name,
-          url,
-          duration: clipDur,
-          start,
-          file,
-          aspectRatio: v.videoWidth / v.videoHeight || 9 / 16,
-        };
-        if (!mediaAsset) {
-          setMediaAsset({
-            id: newClip.id,
-            name: file.name,
-            type: 'video',
-            url,
-            duration: clipDur,
-            file,
-            aspectRatio: newClip.aspectRatio || 9 / 16,
-          });
-        }
-        return [...prev, newClip];
-      });
-      setToastMessage('🎬 Video sumado a la línea de tiempo');
-      setTimeout(() => setToastMessage(null), 2500);
-    };
-  }, [mediaAsset]);
 
   // Add an audio clip file directly
   const handleAddAudioClip = useCallback((file: File) => {
@@ -1053,6 +1072,20 @@ export const App: React.FC = () => {
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) processIncomingFile(file);
+          e.target.value = '';
+        }}
+      />
+
+      {/* Dedicated hidden video input for adding/appending video clips */}
+      <input
+        ref={videoFileInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleAddVideoClip(file);
+          e.target.value = '';
         }}
       />
 
@@ -1065,6 +1098,7 @@ export const App: React.FC = () => {
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleAddAudioClip(file);
+          e.target.value = '';
         }}
       />
 
@@ -1194,7 +1228,7 @@ export const App: React.FC = () => {
         onDeleteSelected={handleDeleteTimelineSelected}
         onCopySelected={handleCopySelected}
         onPasteAtPlayhead={handlePasteAtPlayhead}
-        onAddVideoClick={() => fileInputRef.current?.click()}
+        onAddVideoClick={() => videoFileInputRef.current?.click()}
         onAddSoundClick={() => audioFileInputRef.current?.click()}
         videoVolume={videoVolume}
         isVideoMuted={isVideoMuted}
