@@ -6,6 +6,8 @@ import {
   Square, 
   Monitor, 
   Download, 
+  FolderOpen,
+  Save,
   Upload,
   Mic,
   Video
@@ -18,6 +20,9 @@ interface HeaderProps {
   onAutoSubtitlesClick: () => void;
   onExportClick: () => void;
   isExporting: boolean;
+  onProjectsClick?: () => void;
+  onQuickSaveClick?: () => void;
+  currentProjectName?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +32,9 @@ export const Header: React.FC<HeaderProps> = ({
   onAutoSubtitlesClick,
   onExportClick,
   isExporting,
+  onProjectsClick,
+  onQuickSaveClick,
+  currentProjectName,
 }) => {
   return (
     <header className="h-16 border-b border-neutral-800 bg-neutral-900/90 backdrop-blur px-5 flex items-center justify-between z-30 select-none">
@@ -41,6 +49,11 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-full">
               Edición Fácil 👴👌
             </span>
+            {currentProjectName && (
+              <span className="hidden xl:inline-block px-2.5 py-0.5 text-[11px] font-semibold bg-neutral-800 text-neutral-300 border border-neutral-700 rounded-lg max-w-[170px] truncate" title={`Proyecto actual: ${currentProjectName}`}>
+                📁 {currentProjectName}
+              </span>
+            )}
           </div>
           <p className="text-xs text-neutral-400 m-0 hidden sm:block">
             El editor de video definitivo para creadores
@@ -91,7 +104,29 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Actions */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
+        {onProjectsClick && (
+          <button
+            onClick={onProjectsClick}
+            className="flex items-center gap-1.5 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"
+            title="Mis Proyectos Guardados"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden lg:inline">Mis Proyectos</span>
+          </button>
+        )}
+
+        {onQuickSaveClick && (
+          <button
+            onClick={onQuickSaveClick}
+            className="flex items-center gap-1.5 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"
+            title="Guardar proyecto actual"
+          >
+            <Save className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline">Guardar</span>
+          </button>
+        )}
+
         <button
           onClick={onImportClick}
           className="flex items-center gap-1.5 px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"

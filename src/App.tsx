@@ -17,10 +17,19 @@ import { LeftSidebar } from './components/LeftSidebar';
 import { PreviewCanvas } from './components/PreviewCanvas';
 import { Timeline } from './components/Timeline';
 import { ExportModal } from './components/ExportModal';
+import { ProjectsModal } from './components/ProjectsModal';
 import { musicPlayer } from './utils/audioSynth';
 import { videoExporter } from './utils/videoExporter';
 import { whisperService } from './utils/whisperLocal';
 import { selfieSegmenter } from './utils/segmentation';
+import {
+  saveProjectToDB,
+  saveAutoSaveToDB,
+  getAutoSaveFromDB,
+  clearAutoSaveFromDB,
+  urlToBlob,
+  type SavedProject,
+} from './utils/projectStorage';
 import { UploadCloud, Wand2 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -129,6 +138,14 @@ export const App: React.FC = () => {
   // 13. Selected Canvas Element for keyboard deletion (Delete/Supr)
   const [selectedElement, setSelectedElement] = useState<'none' | 'watermark' | 'title' | 'subtitle'>('none');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 14. Projects Management State
+  const [isProjectsModalOpen, setIsProjectsModalOpen] = useState<boolean>(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [currentProjectName, setCurrentProjectName] = useState<string>('Mi Video');
+  const [isSavingProject, setIsSavingProject] = useState<boolean>(false);
+  const [autoSaveAvailable, setAutoSaveAvailable] = useState<SavedProject | null>(null);
+  const [hasPromptedAutoSave, setHasPromptedAutoSave] = useState<boolean>(false);
 
   // Canvas & Video element refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -476,6 +493,410 @@ export const App: React.FC = () => {
     musicPlayer.seekClips(audioClips, time);
   };
 
+  // Check if there is an autosave session available on initial startup
+  useEffect(() => {
+    getAutoSaveFromDB().then((draft) => {
+      if (
+        draft &&
+        (draft.videoClips?.length > 0 || draft.mediaAsset || draft.subtitles?.length > 0)
+      ) {
+        setAutoSaveAvailable(draft);
+      }
+    });
+  }, []);
+
+  // Save current project state into IndexedDB
+  const handleSaveCurrentProject = async (name: string): Promise<void> => {
+    setIsSavingProject(true);
+    try {
+      // 1. Prepare video clip blobs
+      const preparedVideoClips = await Promise.all(
+        videoClips.map(async (clip) => {
+          let blob = clip.file;
+          if (!blob && clip.url) {
+            blob = ((await urlToBlob(clip.url)) as File) || undefined;
+          }
+          return {
+            id: clip.id,
+            name: clip.name,
+            type: clip.type,
+            duration: clip.duration,
+            start: clip.start,
+            aspectRatio: clip.aspectRatio,
+            transitionToNext: clip.transitionToNext,
+            transitionDuration: clip.transitionDuration,
+            fileBlob: blob,
+          };
+        })
+      );
+
+      // 2. Prepare mediaAsset blob
+      let preparedMediaAsset = null;
+      if (mediaAsset) {
+        let blob = mediaAsset.file;
+        if (!blob && mediaAsset.url) {
+          blob = ((await urlToBlob(mediaAsset.url)) as File) || undefined;
+        }
+        preparedMediaAsset = {
+          id: mediaAsset.id,
+          name: mediaAsset.name,
+          type: mediaAsset.type,
+          duration: mediaAsset.duration,
+          aspectRatio: mediaAsset.aspectRatio,
+          fileBlob: blob,
+        };
+      }
+
+      // 3. Prepare audio clip blobs
+      const preparedAudioClips = await Promise.all(
+        audioClips.map(async (a) => {
+          let blob = a.file;
+          if (!blob && a.url) {
+            blob = ((await urlToBlob(a.url)) as File) || undefined;
+          }
+          return {
+            id: a.id,
+            name: a.name,
+            start: a.start,
+            duration: a.duration,
+            volume: a.volume,
+            isLoop: a.isLoop,
+            sfxType: a.sfxType,
+            presetTheme: a.presetTheme,
+            isMuted: a.isMuted,
+            fileBlob: blob,
+          };
+        })
+      );
+
+      // 4. Prepare watermark blob
+      let watermarkBlob: Blob | undefined = undefined;
+      if (watermarkConfig.url) {
+        watermarkBlob = (await urlToBlob(watermarkConfig.url)) || undefined;
+      }
+
+      // 5. Canvas thumbnail
+      let thumbnail: string | undefined = undefined;
+      if (canvasRef.current) {
+        try {
+          thumbnail = canvasRef.current.toDataURL('image/jpeg', 0.65);
+        } catch (e) {}
+      }
+
+      const projId =
+        currentProjectId ||
+        'proj-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+
+      const project: SavedProject = {
+        id: projId,
+        name: name || currentProjectName || 'Mi Video',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        thumbnail,
+        aspectRatio,
+        duration,
+        currentTime,
+        videoVolume,
+        isVideoMuted,
+        mediaAsset: preparedMediaAsset,
+        videoClips: preparedVideoClips,
+        audioClips: preparedAudioClips,
+        audioConfig,
+        textConfig,
+        subtitles,
+        transitionConfig,
+        watermarkConfig: {
+          position: watermarkConfig.position,
+          scale: watermarkConfig.scale,
+          opacity: watermarkConfig.opacity,
+          start: watermarkConfig.start,
+          duration: watermarkConfig.duration,
+          fileBlob: watermarkBlob,
+        },
+      };
+
+      await saveProjectToDB(project);
+      setCurrentProjectId(projId);
+      setCurrentProjectName(project.name);
+      setToastMessage(`💾 Proyecto "${project.name}" guardado`);
+      setTimeout(() => setToastMessage(null), 2500);
+    } catch (err) {
+      console.error('Error saving project:', err);
+      throw err;
+    } finally {
+      setIsSavingProject(false);
+    }
+  };
+
+  // Quick save when clicking Header "Guardar"
+  const handleQuickSave = () => {
+    if (!currentProjectId && !videoClips.length && !mediaAsset) {
+      setIsProjectsModalOpen(true);
+      return;
+    }
+    handleSaveCurrentProject(currentProjectName).catch(() => {
+      setIsProjectsModalOpen(true);
+    });
+  };
+
+  // Load a saved project into the editor
+  const handleLoadProject = useCallback((project: SavedProject) => {
+    // 1. Recreate Blob URLs for video clips
+    const restoredVideoClips: VideoClip[] = (project.videoClips || []).map((c) => {
+      const url = c.fileBlob ? URL.createObjectURL(c.fileBlob) : '';
+      const file = c.fileBlob
+        ? new File([c.fileBlob], c.name, { type: c.fileBlob.type })
+        : undefined;
+      return {
+        id: c.id,
+        name: c.name,
+        type: c.type || 'video',
+        duration: c.duration,
+        start: c.start,
+        aspectRatio: c.aspectRatio,
+        transitionToNext: c.transitionToNext,
+        transitionDuration: c.transitionDuration,
+        url,
+        file,
+      };
+    });
+
+    // 2. Recreate mediaAsset
+    let restoredMediaAsset: MediaAsset | null = null;
+    if (project.mediaAsset) {
+      const url = project.mediaAsset.fileBlob
+        ? URL.createObjectURL(project.mediaAsset.fileBlob)
+        : '';
+      const file = project.mediaAsset.fileBlob
+        ? new File([project.mediaAsset.fileBlob], project.mediaAsset.name, {
+            type: project.mediaAsset.fileBlob.type,
+          })
+        : undefined;
+      restoredMediaAsset = {
+        id: project.mediaAsset.id,
+        name: project.mediaAsset.name,
+        type: project.mediaAsset.type,
+        duration: project.mediaAsset.duration,
+        aspectRatio: project.mediaAsset.aspectRatio,
+        url,
+        file,
+      };
+    } else if (restoredVideoClips.length > 0) {
+      const first = restoredVideoClips[0];
+      restoredMediaAsset = {
+        id: first.id,
+        name: first.name,
+        type: 'video',
+        duration: first.duration,
+        aspectRatio:
+          first.aspectRatio ||
+          (project.aspectRatio === '9:16' ? 9 / 16 : project.aspectRatio === '16:9' ? 16 / 9 : 1),
+        url: first.url,
+        file: first.file,
+      };
+    }
+
+    // 3. Recreate audio clips
+    const restoredAudioClips: AudioClip[] = (project.audioClips || []).map((a) => {
+      const url = a.fileBlob ? URL.createObjectURL(a.fileBlob) : (a as any).url || null;
+      const file = a.fileBlob
+        ? new File([a.fileBlob], a.name, { type: a.fileBlob.type })
+        : undefined;
+      return {
+        id: a.id,
+        name: a.name,
+        start: a.start,
+        duration: a.duration,
+        volume: a.volume,
+        isLoop: a.isLoop,
+        sfxType: a.sfxType,
+        presetTheme: a.presetTheme,
+        isMuted: a.isMuted,
+        url,
+        file,
+      };
+    });
+
+    // 4. Recreate watermark
+    let watermarkUrl: string | null = null;
+    if (project.watermarkConfig?.fileBlob) {
+      watermarkUrl = URL.createObjectURL(project.watermarkConfig.fileBlob);
+    }
+
+    // Apply all states
+    setCurrentProjectId(project.id);
+    setCurrentProjectName(project.name);
+    setAspectRatio(project.aspectRatio || '9:16');
+    setVideoClips(restoredVideoClips);
+    setMediaAsset(restoredMediaAsset);
+    setAudioClips(restoredAudioClips);
+    if (project.audioConfig) setAudioConfig(project.audioConfig);
+    if (project.textConfig) setTextConfig(project.textConfig);
+    if (project.subtitles) setSubtitles(project.subtitles);
+    if (project.transitionConfig) setTransitionConfig(project.transitionConfig);
+    setWatermarkConfig({
+      url: watermarkUrl,
+      position: project.watermarkConfig?.position || { x: 50, y: 50 },
+      scale: project.watermarkConfig?.scale ?? 0.5,
+      opacity: project.watermarkConfig?.opacity ?? 1,
+      start: project.watermarkConfig?.start,
+      duration: project.watermarkConfig?.duration,
+    });
+    if (project.videoVolume !== undefined) setVideoVolume(project.videoVolume);
+    if (project.isVideoMuted !== undefined) setIsVideoMuted(project.isVideoMuted);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setToastMessage(`📂 Proyecto "${project.name}" cargado`);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  // Start new blank project
+  const handleNewProject = () => {
+    setCurrentProjectId(null);
+    setCurrentProjectName('Mi Video');
+    setVideoClips([]);
+    setMediaAsset(null);
+    setAudioClips([]);
+    setSubtitles([]);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setTextConfig((prev) => ({
+      ...prev,
+      primaryText: '',
+      secondaryText: '',
+      enabled: false,
+    }));
+    setWatermarkConfig({
+      url: null,
+      position: { x: 85, y: 15 },
+      scale: 0.5,
+      opacity: 0.9,
+    });
+    clearAutoSaveFromDB();
+    setToastMessage('✨ Nuevo proyecto en blanco');
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  // Auto-save session debounced every 12 seconds in background
+  useEffect(() => {
+    if (videoClips.length === 0 && !mediaAsset && subtitles.length === 0) return;
+    const timer = setTimeout(async () => {
+      try {
+        const preparedVideoClips = await Promise.all(
+          videoClips.map(async (clip) => {
+            let blob = clip.file;
+            if (!blob && clip.url) {
+              blob = ((await urlToBlob(clip.url)) as File) || undefined;
+            }
+            return {
+              id: clip.id,
+              name: clip.name,
+              type: clip.type,
+              duration: clip.duration,
+              start: clip.start,
+              aspectRatio: clip.aspectRatio,
+              transitionToNext: clip.transitionToNext,
+              transitionDuration: clip.transitionDuration,
+              fileBlob: blob,
+            };
+          })
+        );
+
+        let preparedMediaAsset = null;
+        if (mediaAsset) {
+          let blob = mediaAsset.file;
+          if (!blob && mediaAsset.url) {
+            blob = ((await urlToBlob(mediaAsset.url)) as File) || undefined;
+          }
+          preparedMediaAsset = {
+            id: mediaAsset.id,
+            name: mediaAsset.name,
+            type: mediaAsset.type,
+            duration: mediaAsset.duration,
+            aspectRatio: mediaAsset.aspectRatio,
+            fileBlob: blob,
+          };
+        }
+
+        const preparedAudioClips = await Promise.all(
+          audioClips.map(async (a) => {
+            let blob = a.file;
+            if (!blob && a.url) {
+              blob = ((await urlToBlob(a.url)) as File) || undefined;
+            }
+            return {
+              id: a.id,
+              name: a.name,
+              start: a.start,
+              duration: a.duration,
+              volume: a.volume,
+              isLoop: a.isLoop,
+              sfxType: a.sfxType,
+              presetTheme: a.presetTheme,
+              isMuted: a.isMuted,
+              fileBlob: blob,
+            };
+          })
+        );
+
+        let watermarkBlob: Blob | undefined = undefined;
+        if (watermarkConfig.url) {
+          watermarkBlob = (await urlToBlob(watermarkConfig.url)) || undefined;
+        }
+
+        let thumbnail: string | undefined = undefined;
+        if (canvasRef.current) {
+          try {
+            thumbnail = canvasRef.current.toDataURL('image/jpeg', 0.5);
+          } catch (e) {}
+        }
+
+        await saveAutoSaveToDB({
+          id: 'latest_autosave',
+          name: currentProjectName || 'Borrador Automático',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          thumbnail,
+          aspectRatio,
+          duration,
+          currentTime,
+          videoVolume,
+          isVideoMuted,
+          mediaAsset: preparedMediaAsset,
+          videoClips: preparedVideoClips,
+          audioClips: preparedAudioClips,
+          audioConfig,
+          textConfig,
+          subtitles,
+          transitionConfig,
+          watermarkConfig: {
+            position: watermarkConfig.position,
+            scale: watermarkConfig.scale,
+            opacity: watermarkConfig.opacity,
+            start: watermarkConfig.start,
+            duration: watermarkConfig.duration,
+            fileBlob: watermarkBlob,
+          },
+        });
+      } catch (e) {
+        // silent fail on autosave
+      }
+    }, 12000);
+
+    return () => clearTimeout(timer);
+  }, [
+    videoClips,
+    mediaAsset,
+    audioClips,
+    subtitles,
+    textConfig,
+    watermarkConfig,
+    transitionConfig,
+    aspectRatio,
+    videoVolume,
+    isVideoMuted,
+    currentProjectName,
+  ]);
 
   // Add an audio clip file directly
   const handleAddAudioClip = useCallback((file: File) => {
@@ -1259,7 +1680,40 @@ export const App: React.FC = () => {
         onAutoSubtitlesClick={handleAutoSubtitles}
         onExportClick={handleExport}
         isExporting={isExporting && !exportComplete}
+        onProjectsClick={() => setIsProjectsModalOpen(true)}
+        onQuickSaveClick={handleQuickSave}
+        currentProjectName={currentProjectName}
       />
+
+      {/* AutoSave recovery prompt banner if available on start */}
+      {autoSaveAvailable && !hasPromptedAutoSave && videoClips.length === 0 && !mediaAsset && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-neutral-900/95 border border-amber-500/50 shadow-2xl px-5 py-3 rounded-2xl flex items-center gap-4 animate-fadeIn">
+          <div className="text-xs text-white">
+            <span className="font-bold text-amber-400">💡 Sesión anterior recuperable:</span> ¿Deseas restaurar &quot;{autoSaveAvailable.name}&quot;?
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                handleLoadProject(autoSaveAvailable);
+                setAutoSaveAvailable(null);
+                setHasPromptedAutoSave(true);
+              }}
+              className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-bold rounded-lg transition"
+            >
+              Restaurar
+            </button>
+            <button
+              onClick={() => {
+                setAutoSaveAvailable(null);
+                setHasPromptedAutoSave(true);
+              }}
+              className="px-2 py-1 text-neutral-400 hover:text-white text-xs transition"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Transcribing Toast Notification */}
       {isTranscribing && (
@@ -1387,6 +1841,18 @@ export const App: React.FC = () => {
             videoExporter.downloadBlob(exportedBlob);
           }
         }}
+      />
+
+      {/* Projects Manager Modal */}
+      <ProjectsModal
+        isOpen={isProjectsModalOpen}
+        onClose={() => setIsProjectsModalOpen(false)}
+        currentProjectName={currentProjectName}
+        setCurrentProjectName={setCurrentProjectName}
+        onSaveCurrentProject={handleSaveCurrentProject}
+        onLoadProject={handleLoadProject}
+        onNewProject={handleNewProject}
+        isSaving={isSavingProject}
       />
     </div>
   );
