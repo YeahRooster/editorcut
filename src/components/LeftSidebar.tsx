@@ -72,7 +72,7 @@ interface LeftSidebarProps {
   onSelectItem: (item: TimelineSelection | null) => void;
   textClips?: TextClipItem[];
   setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
-  onAddTextClip?: () => void;
+  onAddTextClip?: (customText?: string) => void;
 }
 
 type TabKey = 'media' | 'text' | 'subtitles' | 'music' | 'watermark';
@@ -114,6 +114,19 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const [isMicListening, setIsMicListening] = useState(false);
   const [segmentationModel, setSegmentationModel] = useState<0 | 1>(selfieSegmenter.getModel());
   const [refineMode, setRefineModeState] = useState<'enhanced' | 'direct'>(selfieSegmenter.getRefineMode());
+  // Resolve which title clip is being edited:
+  // 1. Clip explicitly selected in timeline or list
+  // 2. OR clip currently at playhead time
+  // 3. OR first clip if clips exist
+  const activeEditingClip =
+    (selectedItem?.track === 'text' && textClips
+      ? textClips.find((c) => c.id === selectedItem.id)
+      : null) ||
+    (textClips && textClips.length > 0
+      ? textClips.find((c) => currentTime >= c.start && currentTime <= c.end)
+      : null) ||
+    (textClips && textClips.length > 0 ? textClips[0] : null);
+
 
   // File upload handler for media (automatically appends if a video already exists)
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -990,7 +1003,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               {onAddTextClip ? (
                 <button
                   type="button"
-                  onClick={onAddTextClip}
+                  onClick={() => onAddTextClip && onAddTextClip()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-bold transition shadow-sm active:scale-95"
                   title="Agregar un nuevo título en la aguja de la línea de tiempo"
                 >
@@ -1176,26 +1189,32 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   <label className="block text-xs font-semibold text-neutral-300">
                     Frase Principal (Título)
                   </label>
-                  {selectedItem?.track === 'text' && (
-                    <span className="text-[10px] text-purple-400 font-bold animate-pulse">
-                      Editando clip seleccionado
+                  {activeEditingClip ? (
+                    <span className="text-[10px] text-purple-400 font-bold bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                      Editando en línea de tiempo ({activeEditingClip.start.toFixed(1)}s - {activeEditingClip.end.toFixed(1)}s)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-neutral-500">
+                      Nuevo título
                     </span>
                   )}
                 </div>
                 <textarea
                   rows={2}
-                  value={
-                    selectedItem?.track === 'text' && textClips
-                      ? (textClips.find((c) => c.id === selectedItem.id)?.text ?? textConfig.primaryText)
-                      : textConfig.primaryText
-                  }
+                  value={activeEditingClip ? activeEditingClip.text : textConfig.primaryText}
                   onChange={(e) => {
                     const val = e.target.value;
                     setTextConfig((prev) => ({ ...prev, primaryText: val, enabled: true }));
-                    if (selectedItem?.track === 'text' && setTextClips) {
+                    if (activeEditingClip && setTextClips) {
                       setTextClips((prev) =>
-                        prev.map((c) => (c.id === selectedItem.id ? { ...c, text: val } : c))
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, text: val } : c))
                       );
+                      if (selectedItem?.id !== activeEditingClip.id) {
+                        onSelectItem({ track: 'text', id: activeEditingClip.id });
+                      }
+                    } else if (!activeEditingClip && onAddTextClip) {
+                      onAddTextClip(val);
                     }
                   }}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs text-white focus:border-purple-500 focus:outline-none uppercase font-bold"
@@ -1210,16 +1229,16 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <input
                   type="text"
                   value={
-                    selectedItem?.track === 'text' && textClips
-                      ? (textClips.find((c) => c.id === selectedItem.id)?.secondaryText ?? textConfig.secondaryText)
+                    activeEditingClip && activeEditingClip.secondaryText !== undefined
+                      ? activeEditingClip.secondaryText
                       : textConfig.secondaryText
                   }
                   onChange={(e) => {
                     const val = e.target.value;
                     setTextConfig((prev) => ({ ...prev, secondaryText: val }));
-                    if (selectedItem?.track === 'text' && setTextClips) {
+                    if (activeEditingClip && setTextClips) {
                       setTextClips((prev) =>
-                        prev.map((c) => (c.id === selectedItem.id ? { ...c, secondaryText: val } : c))
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, secondaryText: val } : c))
                       );
                     }
                   }}
@@ -1340,9 +1359,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   { id: 'zoom', label: '🔍 Zoom Suave', desc: 'Escala progresiva' },
                   { id: 'none', label: '✂️ Corte Directo', desc: 'Sin animación' },
                 ].map((anim) => {
-                  const currentAnim = (selectedItem?.track === 'text' && textClips)
-                    ? (textClips.find(c => c.id === selectedItem.id)?.animation || textConfig.animation || 'fade')
-                    : (textConfig.animation || 'fade');
+                  const currentAnim = activeEditingClip?.animation || textConfig.animation || 'fade';
                   const isSelected = currentAnim === anim.id;
 
                   return (
@@ -1351,9 +1368,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       type="button"
                       onClick={() => {
                         setTextConfig((prev) => ({ ...prev, animation: anim.id as any }));
-                        if (selectedItem?.track === 'text' && setTextClips) {
+                        if (activeEditingClip && setTextClips) {
                           setTextClips((prev) =>
-                            prev.map((c) => (c.id === selectedItem.id ? { ...c, animation: anim.id as any } : c))
+                            prev.map((c) => (c.id === activeEditingClip.id ? { ...c, animation: anim.id as any } : c))
                           );
                         }
                       }}
@@ -1387,9 +1404,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   onChange={(e) => {
                     const dur = parseFloat(e.target.value);
                     setTextConfig((prev) => ({ ...prev, animationDuration: dur }));
-                    if (selectedItem?.track === 'text' && setTextClips) {
+                    if (activeEditingClip && setTextClips) {
                       setTextClips((prev) =>
-                        prev.map((c) => (c.id === selectedItem.id ? { ...c, animationDuration: dur } : c))
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, animationDuration: dur } : c))
                       );
                     }
                   }}

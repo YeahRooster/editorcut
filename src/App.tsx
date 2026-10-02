@@ -928,22 +928,27 @@ export const App: React.FC = () => {
     };
   }, [currentTime, audioConfig.volume]);
 
-  // Add an animated title clip at playhead position
-  const handleAddTextClip = () => {
+  // Add an animated title clip at playhead position (fresh title, no duplication)
+  const handleAddTextClip = (customText?: string) => {
     const start = Math.round(currentTime * 10) / 10;
-    const dur = 3.5;
+    const dur = 3.0;
     const end = Math.min(Math.round((start + dur) * 10) / 10, duration || 15);
+    const newIndex = textClips.length + 1;
+    const newText = typeof customText === 'string' && customText.trim()
+      ? customText.trim()
+      : `TÍTULO ${newIndex}`;
+
     const newClip: TextClipItem = {
       id: 'title-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-      text: textConfig.primaryText || 'NUEVO TÍTULO',
-      secondaryText: textConfig.secondaryText || '',
+      text: newText,
+      secondaryText: '',
       start,
-      end: end > start ? end : start + 3,
+      end: end > start ? end : start + 2.5,
       position: { ...textConfig.textPosition },
-      fontSize: textConfig.fontSize,
-      fontFamily: textConfig.fontFamily,
-      textColor: textConfig.textColor,
-      mode: textConfig.mode,
+      fontSize: textConfig.fontSize || 28,
+      fontFamily: textConfig.fontFamily || 'Bebas Neue',
+      textColor: textConfig.textColor || '#ffffff',
+      mode: textConfig.mode || 'behind_subject',
       animation: textConfig.animation || 'fade',
       animationDuration: textConfig.animationDuration || 0.5,
     };
@@ -955,10 +960,11 @@ export const App: React.FC = () => {
     setTextConfig((prev) => ({
       ...prev,
       enabled: true,
-      primaryText: newClip.text,
+      primaryText: newText,
+      secondaryText: '',
     }));
     setSelectedTimelineItem({ track: 'text', id: newClip.id });
-    setToastMessage('🔤 Título agregado a la línea de tiempo');
+    setToastMessage(`🔤 "${newText}" agregado en ${start.toFixed(1)}s`);
     setTimeout(() => setToastMessage(null), 2500);
   };
 
@@ -1192,7 +1198,14 @@ export const App: React.FC = () => {
         }
         setToastMessage('🗑️ Pista de sonido eliminada');
       } else if (track === 'text') {
-        setTextClips((prev) => prev.filter((t) => t.id !== id));
+        setTextClips((prev) => {
+          const next = prev.filter((t) => t.id !== id);
+          if (next.length === 0) {
+            setTextConfig((tc) => ({ ...tc, primaryText: '', secondaryText: '' }));
+          }
+          return next;
+        });
+        setSelectedTimelineItem(null);
         setToastMessage('🗑️ Título eliminado');
       } else if (track === 'subtitles') {
         setSubtitles((prev) => prev.filter((s) => s.id !== id));

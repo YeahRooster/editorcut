@@ -106,15 +106,19 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   // Double-click inline editing states
   const [editingSubtitle, setEditingSubtitle] = useState<{ id: string; text: string } | null>(null);
   const [editingTitle, setEditingTitle] = useState<boolean>(false);
+  const [editingTitleClipId, setEditingTitleClipId] = useState<string | null>(null);
   // Active text clip helper for mouse interaction & editing
   const getActiveTextClip = () => {
-    return textClips && textClips.length > 0
-      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
-         (!isPlaying && selectedTimelineItem?.track === 'text' ? textClips.find((c) => c.id === selectedTimelineItem.id) || textClips[0] : null))
-      : null;
+    if (!textClips || textClips.length === 0) return null;
+    return (
+      textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+      (!isPlaying && selectedTimelineItem?.track === 'text'
+        ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
+        : null)
+    );
   };
   const activeInteractiveTextClip = getActiveTextClip();
-  const activeInteractiveTitleText = activeInteractiveTextClip ? activeInteractiveTextClip.text : textConfig.primaryText;
+
 
   const [titleEditText, setTitleEditText] = useState<string>('');
 
@@ -457,17 +461,26 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // -------------------------------------------------------------
     // ACTIVE TITLE & TEXT ANIMATION ENGINE
     // -------------------------------------------------------------
-    const activeTextClip = textClips && textClips.length > 0
+    // Only show clip if playhead is strictly inside its start..end range,
+    // OR if video is paused and user specifically clicked this text clip in the timeline
+    const activeTextClip = (textClips && textClips.length > 0)
       ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
-         (!isPlaying && selectedTimelineItem?.track === 'text' ? textClips.find((c) => c.id === selectedTimelineItem.id) || textClips[0] : null))
+         (!isPlaying && selectedTimelineItem?.track === 'text'
+           ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
+           : null))
       : null;
 
-    const hasActiveTitle = activeTextClip
-      ? activeTextClip.text.trim().length > 0
-      : (textConfig.enabled && textConfig.primaryText && textConfig.primaryText.trim().length > 0);
+    // When textClips array is active, NEVER show any ghost title outside clip boundaries!
+    const hasActiveTitle = (textClips && textClips.length > 0)
+      ? (!!activeTextClip && activeTextClip.text.trim().length > 0)
+      : (textConfig.enabled && !!textConfig.primaryText && textConfig.primaryText.trim().length > 0);
 
-    const currentTitleText = activeTextClip ? activeTextClip.text : textConfig.primaryText;
-    const currentSecondaryText = activeTextClip?.secondaryText !== undefined ? activeTextClip.secondaryText : textConfig.secondaryText;
+    const currentTitleText = activeTextClip
+      ? activeTextClip.text
+      : (textClips && textClips.length > 0 ? '' : textConfig.primaryText);
+    const currentSecondaryText = activeTextClip?.secondaryText !== undefined
+      ? activeTextClip.secondaryText
+      : (textClips && textClips.length > 0 ? '' : textConfig.secondaryText);
     const currentTitlePos = activeTextClip?.position || textConfig.textPosition || { x: 50, y: 30 };
     const currentFontSize = activeTextClip?.fontSize ?? textConfig.fontSize ?? 28;
     const currentFontFamily = activeTextClip?.fontFamily || textConfig.fontFamily || 'Bebas Neue';
@@ -1212,14 +1225,20 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
 
     // 3. Title box & corner handle
-    const activeClipHit = textClips && textClips.length > 0
+    const activeClipHit = (textClips && textClips.length > 0)
       ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
-         (!isPlaying && selectedTimelineItem?.track === 'text' ? textClips.find((c) => c.id === selectedTimelineItem.id) || textClips[0] : null))
+         (!isPlaying && selectedTimelineItem?.track === 'text'
+           ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
+           : null))
       : null;
-    const hitTitleText = activeClipHit ? activeClipHit.text : textConfig.primaryText;
+    const hasHitTitle = (textClips && textClips.length > 0)
+      ? (!!activeClipHit && activeClipHit.text.trim().length > 0)
+      : (textConfig.enabled && !!textConfig.primaryText && textConfig.primaryText.trim().length > 0);
+    const hitTitleText = activeClipHit
+      ? activeClipHit.text
+      : (textClips && textClips.length > 0 ? '' : textConfig.primaryText);
     const hitTitlePos = activeClipHit?.position || textConfig.textPosition || { x: 50, y: 30 };
     const hitTitleFontSize = activeClipHit?.fontSize ?? textConfig.fontSize ?? 28;
-    const hasHitTitle = activeClipHit ? hitTitleText.trim().length > 0 : (textConfig.enabled && hitTitleText && hitTitleText.trim().length > 0);
 
     let titleBox: { x: number; y: number; w: number; h: number } | null = null;
     let titleHandle: { x: number; y: number; r: number } | null = null;
@@ -1505,7 +1524,14 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         yPct >= titleBox.y &&
         yPct <= titleBox.y + titleBox.h
       ) {
-        setTitleEditText(activeInteractiveTitleText || '');
+        const targetClip = (textClips && textClips.length > 0)
+          ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+             (!isPlaying && selectedTimelineItem?.track === 'text'
+               ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
+               : null))
+          : null;
+        setEditingTitleClipId(targetClip ? targetClip.id : null);
+        setTitleEditText(targetClip ? targetClip.text : textConfig.primaryText);
         setEditingTitle(true);
         return;
       }
@@ -1706,8 +1732,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     setTextConfig((prev) => ({ ...prev, primaryText: titleEditText }));
-                    if (setTextClips && activeInteractiveTextClip) {
-                      setTextClips((prev) => prev.map((c) => c.id === activeInteractiveTextClip.id ? { ...c, text: titleEditText } : c));
+                    if (setTextClips && editingTitleClipId) {
+                      setTextClips((prev) => prev.map((c) => c.id === editingTitleClipId ? { ...c, text: titleEditText } : c));
                     }
                     setEditingTitle(false);
                   } else if (e.key === 'Escape') {
@@ -1734,8 +1760,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                     type="button"
                     onClick={() => {
                       setTextConfig((prev) => ({ ...prev, primaryText: titleEditText }));
-                      if (setTextClips && activeInteractiveTextClip) {
-                        setTextClips((prev) => prev.map((c) => c.id === activeInteractiveTextClip.id ? { ...c, text: titleEditText } : c));
+                      if (setTextClips && editingTitleClipId) {
+                        setTextClips((prev) => prev.map((c) => c.id === editingTitleClipId ? { ...c, text: titleEditText } : c));
                       }
                       setEditingTitle(false);
                     }}

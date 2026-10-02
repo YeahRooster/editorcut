@@ -639,6 +639,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectItem({ track: 'text', id: clip.id });
+                    onSeek(clip.start);
                   }}
                   className={`absolute top-0.5 bottom-0.5 rounded px-1.5 flex items-center justify-between text-[10px] font-bold cursor-grab active:cursor-grabbing transition border select-none group ${
                     isSelected
