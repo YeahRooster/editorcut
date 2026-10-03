@@ -22,8 +22,8 @@ export class VideoExporter {
   ): Promise<Blob> {
     this.recordedChunks = [];
 
-    // Capture 30fps stream from canvas
-    const canvasStream = canvas.captureStream(30);
+    // Capture 60fps stream from canvas for perfectly smooth, fluid video rendering
+    const canvasStream = canvas.captureStream(60);
 
     // If audio tracks are provided, add them to the canvasStream
     if (audioTracks) {

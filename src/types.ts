@@ -136,6 +136,8 @@ export interface AudioClip {
   presetTheme?: 'lofi' | 'cinematic' | 'upbeat' | 'nature' | 'none';
   isMuted?: boolean;
   file?: File;
+  trimStart?: number;
+  trimEnd?: number;
 }
 
 export type TimelineTrackType = 'video' | 'text' | 'subtitles' | 'audio' | 'watermark';

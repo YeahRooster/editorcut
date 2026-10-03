@@ -396,7 +396,8 @@ export const App: React.FC = () => {
       const elToPlay = targetEl || videoRef.current;
       if (elToPlay) {
         const clipStart = targetClip ? targetClip.start : 0;
-        const relTime = Math.max(0, startTime - clipStart);
+        const clipTrim = targetClip ? (targetClip.trimStart || 0) : 0;
+        const relTime = clipTrim + Math.max(0, startTime - clipStart);
         if (Math.abs(elToPlay.currentTime - relTime) > 0.08) {
           try {
             elToPlay.currentTime = relTime;
@@ -488,7 +489,8 @@ export const App: React.FC = () => {
     const elToSeek = targetEl || videoRef.current;
     if (elToSeek) {
       const clipStart = targetClip ? targetClip.start : 0;
-      const relTime = Math.max(0, time - clipStart);
+      const clipTrim = targetClip ? (targetClip.trimStart || 0) : 0;
+      const relTime = clipTrim + Math.max(0, time - clipStart);
       try {
         elToSeek.currentTime = relTime;
       } catch (e) {}
@@ -984,12 +986,14 @@ export const App: React.FC = () => {
       if (clip && splitTime > clip.start + 0.1 && splitTime < clip.start + clip.duration - 0.1) {
         const firstDur = splitTime - clip.start;
         const secondDur = clip.duration - firstDur;
+        const initialTrim = clip.trimStart || 0;
         const clip1: AudioClip = { ...clip, duration: firstDur };
         const clip2: AudioClip = {
           ...clip,
           id: 'audio-' + Date.now() + '-split',
           start: splitTime,
           duration: secondDur,
+          trimStart: initialTrim + firstDur,
         };
         setAudioClips((prev) => prev.flatMap((c) => (c.id === clip.id ? [clip1, clip2] : [c])));
         setToastMessage(`✂️ Sonido cortado en ${splitTime.toFixed(1)}s`);
@@ -1044,12 +1048,20 @@ export const App: React.FC = () => {
     if (targetClip) {
       const firstDur = splitTime - targetClip.start;
       const secondDur = targetClip.duration - firstDur;
-      const clip1: VideoClip = { ...targetClip, duration: firstDur };
+      const initialTrim = targetClip.trimStart || 0;
+      const clip1: VideoClip = {
+        ...targetClip,
+        duration: firstDur,
+        trimStart: initialTrim,
+        trimEnd: initialTrim + firstDur,
+      };
       const clip2: VideoClip = {
         ...targetClip,
         id: 'clip-' + Date.now() + '-split',
         start: splitTime,
         duration: secondDur,
+        trimStart: initialTrim + firstDur,
+        trimEnd: targetClip.trimEnd ?? (initialTrim + targetClip.duration),
       };
       setVideoClips((prev) => prev.flatMap((c) => (c.id === targetClip.id ? [clip1, clip2] : [c])));
       setToastMessage(`✂️ Video cortado en ${splitTime.toFixed(1)}s`);
@@ -1465,7 +1477,7 @@ export const App: React.FC = () => {
       await exportAudioCtx.suspend().catch(() => {});
     }
     const destinationNode = exportAudioCtx.createMediaStreamDestination();
-    const exportDuration = Math.ceil(duration);
+    const exportDuration = duration;
     let hasAudioTrack = false;
 
     try {
@@ -1500,7 +1512,9 @@ export const App: React.FC = () => {
               videoGain.gain.setValueAtTime(effVideoVol, 0);
               videoBufferSource.connect(videoGain);
               videoGain.connect(destinationNode);
-              videoBufferSource.start(clip.start);
+              const clipTrim = clip.trimStart || 0;
+              const playDuration = Math.min(clip.duration, Math.max(0, videoAudioBuffer.duration - clipTrim));
+              videoBufferSource.start(clip.start, clipTrim, playDuration);
               hasAudioTrack = true;
             }
           } catch (e) {
@@ -1547,11 +1561,11 @@ export const App: React.FC = () => {
 
                 sfxSource.connect(sfxGain);
                 sfxGain.connect(destinationNode);
-                sfxSource.start(aClip.start);
+                const aTrim = aClip.trimStart || 0;
+                const aDur = aClip.duration || sfxBuffer.duration;
+                sfxSource.start(aClip.start, aTrim, aDur);
                 if (!aClip.isLoop) {
-                  sfxSource.stop(
-                    aClip.start + (aClip.duration || sfxBuffer.duration)
-                  );
+                  sfxSource.stop(aClip.start + aDur);
                 }
                 hasAudioTrack = true;
               }
@@ -1617,18 +1631,38 @@ export const App: React.FC = () => {
 
       // Synchronize video playback from 0 for canvas rendering
       handleSeek(0);
-      videoClips.forEach((c) => {
-        const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
-        if (el) {
-          try {
-            el.pause();
-            el.currentTime = 0;
-          } catch (e) {}
-        }
-      });
+      await Promise.all(
+        videoClips.map((c) => {
+          return new Promise<void>((resolve) => {
+            const el = document.getElementById('video-clip-' + c.id) as HTMLVideoElement;
+            if (!el) return resolve();
+            try {
+              el.pause();
+              const targetTime = c.trimStart || 0;
+              if (Math.abs(el.currentTime - targetTime) > 0.04) {
+                const onSeeked = () => {
+                  el.removeEventListener('seeked', onSeeked);
+                  resolve();
+                };
+                el.addEventListener('seeked', onSeeked);
+                el.currentTime = targetTime;
+                setTimeout(() => {
+                  el.removeEventListener('seeked', onSeeked);
+                  resolve();
+                }, 400);
+              } else {
+                resolve();
+              }
+            } catch (e) {
+              resolve();
+            }
+          });
+        })
+      );
       if (videoRef.current) {
         videoRef.current.pause();
-        videoRef.current.currentTime = 0;
+        const initTime = (videoClips[0] && videoClips[0].trimStart) || 0;
+        videoRef.current.currentTime = initTime;
         await new Promise<void>((resolve) => {
           const v = videoRef.current;
           if (!v) return resolve();
@@ -1658,7 +1692,7 @@ export const App: React.FC = () => {
             ? (document.getElementById('video-clip-' + firstClip.id) as HTMLVideoElement)
             : videoRef.current;
           if (firstEl) {
-            firstEl.currentTime = 0;
+            firstEl.currentTime = firstClip ? (firstClip.trimStart || 0) : 0;
             firstEl.play().catch(console.error);
             if (videoRef) videoRef.current = firstEl;
           } else if (videoRef.current) {
@@ -1818,42 +1852,40 @@ export const App: React.FC = () => {
       {/* Main Workspace (Sidebar + Canvas) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Control Drawer */}
-        {!isExporting && (
-          <LeftSidebar
-            mediaAsset={mediaAsset}
-            setMediaAsset={setMediaAsset}
-            textConfig={textConfig}
-            setTextConfig={setTextConfig}
-            watermarkConfig={watermarkConfig}
-            setWatermarkConfig={setWatermarkConfig}
-            audioConfig={audioConfig}
-            setAudioConfig={setAudioConfig}
-            subtitles={subtitles}
-            setSubtitles={setSubtitles}
-            currentTime={currentTime}
-            onSeek={handleSeek}
-            duration={duration}
-            onAutoSubtitlesClick={handleAutoSubtitles}
-            onClearText={handleClearAllText}
-            onClearSubtitles={handleClearAllSubtitles}
-            videoVolume={videoVolume}
-            setVideoVolume={setVideoVolume}
-            isVideoMuted={isVideoMuted}
-            setIsVideoMuted={setIsVideoMuted}
-            videoClips={videoClips}
-            setVideoClips={setVideoClips}
-            onAddVideoClip={handleAddVideoClip}
-            audioClips={audioClips}
-            setAudioClips={setAudioClips}
-            transitionConfig={transitionConfig}
-            setTransitionConfig={setTransitionConfig}
-            selectedItem={selectedTimelineItem}
-            onSelectItem={setSelectedTimelineItem}
-            textClips={textClips}
-            setTextClips={setTextClips}
-            onAddTextClip={handleAddTextClip}
-          />
-        )}
+        <LeftSidebar
+          mediaAsset={mediaAsset}
+          setMediaAsset={setMediaAsset}
+          textConfig={textConfig}
+          setTextConfig={setTextConfig}
+          watermarkConfig={watermarkConfig}
+          setWatermarkConfig={setWatermarkConfig}
+          audioConfig={audioConfig}
+          setAudioConfig={setAudioConfig}
+          subtitles={subtitles}
+          setSubtitles={setSubtitles}
+          currentTime={currentTime}
+          onSeek={handleSeek}
+          duration={duration}
+          onAutoSubtitlesClick={handleAutoSubtitles}
+          onClearText={handleClearAllText}
+          onClearSubtitles={handleClearAllSubtitles}
+          videoVolume={videoVolume}
+          setVideoVolume={setVideoVolume}
+          isVideoMuted={isVideoMuted}
+          setIsVideoMuted={setIsVideoMuted}
+          videoClips={videoClips}
+          setVideoClips={setVideoClips}
+          onAddVideoClip={handleAddVideoClip}
+          audioClips={audioClips}
+          setAudioClips={setAudioClips}
+          transitionConfig={transitionConfig}
+          setTransitionConfig={setTransitionConfig}
+          selectedItem={selectedTimelineItem}
+          onSelectItem={setSelectedTimelineItem}
+          textClips={textClips}
+          setTextClips={setTextClips}
+          onAddTextClip={handleAddTextClip}
+        />
 
         {/* Center Live Stage Canvas */}
         <PreviewCanvas
@@ -1889,37 +1921,35 @@ export const App: React.FC = () => {
       </div>
 
       {/* Bottom Timeline with Drag & Drop tracks and Scissors */}
-      {!isExporting && (
-        <Timeline
-          mediaAsset={mediaAsset}
-          videoClips={videoClips}
-          setVideoClips={setVideoClips}
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={handleSeek}
-          subtitles={subtitles}
-          setSubtitles={setSubtitles}
-          onAddSubtitleClick={handleAddSubtitle}
-          textClips={textClips}
-          setTextClips={setTextClips}
-          onAddTextClipClick={handleAddTextClip}
-          audioClips={audioClips}
-          setAudioClips={setAudioClips}
-          onDeleteAudioClip={handleDeleteAudioClip}
-          audioConfig={audioConfig}
-          watermarkConfig={watermarkConfig}
-          selectedItem={selectedTimelineItem}
-          onSelectItem={setSelectedTimelineItem}
-          onSplitClip={handleSplitClip}
-          onDeleteSelected={handleDeleteTimelineSelected}
-          onCopySelected={handleCopySelected}
-          onPasteAtPlayhead={handlePasteAtPlayhead}
-          onAddVideoClick={() => videoFileInputRef.current?.click()}
-          onAddSoundClick={() => audioFileInputRef.current?.click()}
-          videoVolume={videoVolume}
-          isVideoMuted={isVideoMuted}
-        />
-      )}
+      <Timeline
+        mediaAsset={mediaAsset}
+        videoClips={videoClips}
+        setVideoClips={setVideoClips}
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={handleSeek}
+        subtitles={subtitles}
+        setSubtitles={setSubtitles}
+        onAddSubtitleClick={handleAddSubtitle}
+        textClips={textClips}
+        setTextClips={setTextClips}
+        onAddTextClipClick={handleAddTextClip}
+        audioClips={audioClips}
+        setAudioClips={setAudioClips}
+        onDeleteAudioClip={handleDeleteAudioClip}
+        audioConfig={audioConfig}
+        watermarkConfig={watermarkConfig}
+        selectedItem={selectedTimelineItem}
+        onSelectItem={setSelectedTimelineItem}
+        onSplitClip={handleSplitClip}
+        onDeleteSelected={handleDeleteTimelineSelected}
+        onCopySelected={handleCopySelected}
+        onPasteAtPlayhead={handlePasteAtPlayhead}
+        onAddVideoClick={() => videoFileInputRef.current?.click()}
+        onAddSoundClick={() => audioFileInputRef.current?.click()}
+        videoVolume={videoVolume}
+        isVideoMuted={isVideoMuted}
+      />
 
       {/* Export Progress & Download Modal */}
       <ExportModal
