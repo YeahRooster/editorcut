@@ -1818,40 +1818,42 @@ export const App: React.FC = () => {
       {/* Main Workspace (Sidebar + Canvas) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Control Drawer */}
-        <LeftSidebar
-          mediaAsset={mediaAsset}
-          setMediaAsset={setMediaAsset}
-          textConfig={textConfig}
-          setTextConfig={setTextConfig}
-          watermarkConfig={watermarkConfig}
-          setWatermarkConfig={setWatermarkConfig}
-          audioConfig={audioConfig}
-          setAudioConfig={setAudioConfig}
-          subtitles={subtitles}
-          setSubtitles={setSubtitles}
-          currentTime={currentTime}
-          onSeek={handleSeek}
-          duration={duration}
-          onAutoSubtitlesClick={handleAutoSubtitles}
-          onClearText={handleClearAllText}
-          onClearSubtitles={handleClearAllSubtitles}
-          videoVolume={videoVolume}
-          setVideoVolume={setVideoVolume}
-          isVideoMuted={isVideoMuted}
-          setIsVideoMuted={setIsVideoMuted}
-          videoClips={videoClips}
-          setVideoClips={setVideoClips}
-          onAddVideoClip={handleAddVideoClip}
-          audioClips={audioClips}
-          setAudioClips={setAudioClips}
-          transitionConfig={transitionConfig}
-          setTransitionConfig={setTransitionConfig}
-          selectedItem={selectedTimelineItem}
-          onSelectItem={setSelectedTimelineItem}
-          textClips={textClips}
-          setTextClips={setTextClips}
-          onAddTextClip={handleAddTextClip}
-        />
+        {!isExporting && (
+          <LeftSidebar
+            mediaAsset={mediaAsset}
+            setMediaAsset={setMediaAsset}
+            textConfig={textConfig}
+            setTextConfig={setTextConfig}
+            watermarkConfig={watermarkConfig}
+            setWatermarkConfig={setWatermarkConfig}
+            audioConfig={audioConfig}
+            setAudioConfig={setAudioConfig}
+            subtitles={subtitles}
+            setSubtitles={setSubtitles}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+            duration={duration}
+            onAutoSubtitlesClick={handleAutoSubtitles}
+            onClearText={handleClearAllText}
+            onClearSubtitles={handleClearAllSubtitles}
+            videoVolume={videoVolume}
+            setVideoVolume={setVideoVolume}
+            isVideoMuted={isVideoMuted}
+            setIsVideoMuted={setIsVideoMuted}
+            videoClips={videoClips}
+            setVideoClips={setVideoClips}
+            onAddVideoClip={handleAddVideoClip}
+            audioClips={audioClips}
+            setAudioClips={setAudioClips}
+            transitionConfig={transitionConfig}
+            setTransitionConfig={setTransitionConfig}
+            selectedItem={selectedTimelineItem}
+            onSelectItem={setSelectedTimelineItem}
+            textClips={textClips}
+            setTextClips={setTextClips}
+            onAddTextClip={handleAddTextClip}
+          />
+        )}
 
         {/* Center Live Stage Canvas */}
         <PreviewCanvas
@@ -1887,35 +1889,37 @@ export const App: React.FC = () => {
       </div>
 
       {/* Bottom Timeline with Drag & Drop tracks and Scissors */}
-      <Timeline
-        mediaAsset={mediaAsset}
-        videoClips={videoClips}
-        setVideoClips={setVideoClips}
-        currentTime={currentTime}
-        duration={duration}
-        onSeek={handleSeek}
-        subtitles={subtitles}
-        setSubtitles={setSubtitles}
-        onAddSubtitleClick={handleAddSubtitle}
-        textClips={textClips}
-        setTextClips={setTextClips}
-        onAddTextClipClick={handleAddTextClip}
-        audioClips={audioClips}
-        setAudioClips={setAudioClips}
-        onDeleteAudioClip={handleDeleteAudioClip}
-        audioConfig={audioConfig}
-        watermarkConfig={watermarkConfig}
-        selectedItem={selectedTimelineItem}
-        onSelectItem={setSelectedTimelineItem}
-        onSplitClip={handleSplitClip}
-        onDeleteSelected={handleDeleteTimelineSelected}
-        onCopySelected={handleCopySelected}
-        onPasteAtPlayhead={handlePasteAtPlayhead}
-        onAddVideoClick={() => videoFileInputRef.current?.click()}
-        onAddSoundClick={() => audioFileInputRef.current?.click()}
-        videoVolume={videoVolume}
-        isVideoMuted={isVideoMuted}
-      />
+      {!isExporting && (
+        <Timeline
+          mediaAsset={mediaAsset}
+          videoClips={videoClips}
+          setVideoClips={setVideoClips}
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={handleSeek}
+          subtitles={subtitles}
+          setSubtitles={setSubtitles}
+          onAddSubtitleClick={handleAddSubtitle}
+          textClips={textClips}
+          setTextClips={setTextClips}
+          onAddTextClipClick={handleAddTextClip}
+          audioClips={audioClips}
+          setAudioClips={setAudioClips}
+          onDeleteAudioClip={handleDeleteAudioClip}
+          audioConfig={audioConfig}
+          watermarkConfig={watermarkConfig}
+          selectedItem={selectedTimelineItem}
+          onSelectItem={setSelectedTimelineItem}
+          onSplitClip={handleSplitClip}
+          onDeleteSelected={handleDeleteTimelineSelected}
+          onCopySelected={handleCopySelected}
+          onPasteAtPlayhead={handlePasteAtPlayhead}
+          onAddVideoClick={() => videoFileInputRef.current?.click()}
+          onAddSoundClick={() => audioFileInputRef.current?.click()}
+          videoVolume={videoVolume}
+          isVideoMuted={isVideoMuted}
+        />
+      )}
 
       {/* Export Progress & Download Modal */}
       <ExportModal

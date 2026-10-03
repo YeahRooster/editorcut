@@ -1,3 +1,14 @@
+import {
+  Input,
+  Output,
+  BlobSource,
+  BufferTarget,
+  Mp4InputFormat,
+  WebMInputFormat,
+  Mp4OutputFormat,
+  Conversion,
+} from 'mediabunny';
+
 export class VideoExporter {
   private mediaRecorder: MediaRecorder | null = null;
   private recordedChunks: Blob[] = [];
@@ -63,22 +74,51 @@ export class VideoExporter {
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder) return reject(new Error('MediaRecorder unavailable'));
 
+      this.recordedChunks = [];
+
       this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           this.recordedChunks.push(event.data);
         }
       };
 
-      this.mediaRecorder.onstop = () => {
-        const blob = new Blob(this.recordedChunks, { type: selectedMime });
-        resolve(blob);
+      this.mediaRecorder.onstop = async () => {
+        const rawBlob = new Blob(this.recordedChunks, { type: selectedMime });
+
+        try {
+          // Remux fragmented stream into a progressive, standard MP4 with complete sample tables and duration
+          const isWebm = selectedMime.includes('webm');
+          const input = new Input({
+            source: new BlobSource(rawBlob),
+            formats: isWebm ? [new WebMInputFormat()] : [new Mp4InputFormat()],
+          });
+          const output = new Output({
+            format: new Mp4OutputFormat(),
+            target: new BufferTarget(),
+          });
+
+          const conversion = await Conversion.init({ input, output });
+          await conversion.execute();
+
+          const finalBuffer = output.target.buffer;
+          if (finalBuffer && finalBuffer.byteLength > 0) {
+            const finalBlob = new Blob([finalBuffer], { type: 'video/mp4' });
+            resolve(finalBlob);
+            return;
+          }
+        } catch (remuxErr) {
+          console.warn('Fast remux to progressive MP4 fell back to raw blob:', remuxErr);
+        }
+
+        resolve(rawBlob);
       };
 
       this.mediaRecorder.onerror = (e) => {
         reject(e);
       };
 
-      this.mediaRecorder.start(100);
+      // 1000ms timeslices for smooth hardware encoder GOP pacing (avoids micro-lags from 100ms chunking)
+      this.mediaRecorder.start(1000);
 
       // Trigger simultaneous un-freeze of audio & video playback
       if (onStartRecording) {
@@ -105,7 +145,7 @@ export class VideoExporter {
   }
 
   downloadBlob(blob: Blob, requestedFilename?: string) {
-    const isMp4 = blob.type.includes('mp4');
+    const isMp4 = blob.type.includes('mp4') || !blob.type.includes('webm');
     const defaultFilename = isMp4 ? 'mi_video_editado.mp4' : 'mi_video_editado.webm';
     const filename = requestedFilename || defaultFilename;
 

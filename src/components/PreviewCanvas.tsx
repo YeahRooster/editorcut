@@ -189,6 +189,20 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, cWidth, cHeight);
 
+    // In export mode or playback, determine the effective frame time directly from active hardware video clock
+    let effectiveCurrentTime = currentTime;
+    if (isExporting && videoClips && videoClips.length > 0) {
+      for (const c of videoClips) {
+        const v = clipVideosRef.current.get(c.id);
+        if (v && !v.paused && v.currentTime > 0) {
+          effectiveCurrentTime = c.start + v.currentTime;
+          break;
+        }
+      }
+    } else if (isExporting && videoRef && videoRef.current && !videoRef.current.paused) {
+      effectiveCurrentTime = videoRef.current.currentTime;
+    }
+
     let activeSource: CanvasImageSource | null = null;
     let sourceWidth = 0;
     let sourceHeight = 0;
@@ -196,8 +210,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     let activeClip: VideoClip | null = null;
     if (videoClips && videoClips.length > 0) {
       activeClip =
-        videoClips.find((c) => currentTime >= c.start && currentTime < c.start + c.duration) ||
-        (currentTime >=
+        videoClips.find((c) => effectiveCurrentTime >= c.start && effectiveCurrentTime < c.start + c.duration) ||
+        (effectiveCurrentTime >=
         (videoClips[videoClips.length - 1]?.start + videoClips[videoClips.length - 1]?.duration)
           ? videoClips[videoClips.length - 1]
           : videoClips[0]);
@@ -215,8 +229,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     const isCrossfading =
       cutTransition === 'crossfade' &&
       nextClip !== null &&
-      currentTime >= cutTime - transDur &&
-      currentTime <= cutTime;
+      effectiveCurrentTime >= cutTime - transDur &&
+      effectiveCurrentTime <= cutTime;
 
     let activeVideoEl: HTMLVideoElement | null = null;
     if (activeClip) {
@@ -242,7 +256,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
     if (activeVideoEl) {
       const clipStart = activeClip ? activeClip.start : 0;
-      const relTime = Math.max(0, currentTime - clipStart);
+      const relTime = Math.max(0, effectiveCurrentTime - clipStart);
       const drift = Math.abs(activeVideoEl.currentTime - relTime);
 
       // Synchronize video muted state & volume
@@ -273,14 +287,15 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         }
 
         // Start active video if paused and timeline not at the end
-        if (activeVideoEl.paused && currentTime < duration - 0.04) {
+        if (activeVideoEl.paused && effectiveCurrentTime < duration - 0.04) {
           activeVideoEl.play().catch(() => {});
         }
 
         // Single master clock: report real hardware video playback time smoothly to timeline
+        // When exporting, do NOT spam onTimeUpdate to avoid heavy React re-renders that induce micro-lags!
         if (onTimeUpdate && !activeVideoEl.paused) {
           const currentReal = clipStart + activeVideoEl.currentTime;
-          if (Math.abs(currentTime - currentReal) > 0.03) {
+          if (!isExporting && Math.abs(currentTime - currentReal) > 0.03) {
             onTimeUpdate(currentReal);
           }
         }
@@ -288,7 +303,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
       // Check if video reached total timeline duration
       const currentReal = clipStart + activeVideoEl.currentTime;
-      if (isPlaying && duration > 0 && (currentReal >= duration - 0.04 || currentTime >= duration - 0.04)) {
+      if (isPlaying && duration > 0 && (currentReal >= duration - 0.04 || effectiveCurrentTime >= duration - 0.04)) {
         try {
           activeVideoEl.pause();
           activeVideoEl.currentTime = 0;
@@ -302,7 +317,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         const isNearClipEnd =
           activeVideoEl.ended ||
           activeVideoEl.currentTime >= (activeClip.duration || 0) - 0.05 ||
-          currentTime >= cutTime - 0.03;
+          effectiveCurrentTime >= cutTime - 0.03;
 
         if (isNearClipEnd && lastAdvancedClipIdRef.current !== activeClip.id) {
           lastAdvancedClipIdRef.current = activeClip.id;
@@ -351,7 +366,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // ACTIVE TITLE & TEXT ANIMATION ENGINE
     // -------------------------------------------------------------
     const activeTextClip = (textClips && textClips.length > 0)
-      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+      ? (textClips.find((c) => effectiveCurrentTime >= c.start && effectiveCurrentTime <= c.end) ||
          (!isPlaying && selectedTimelineItem?.track === 'text'
            ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
            : null))
@@ -382,8 +397,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     let animScale = 1;
 
     if (activeTextClip) {
-      const timeFromStart = Math.max(0, currentTime - activeTextClip.start);
-      const timeToEnd = Math.max(0, activeTextClip.end - currentTime);
+      const timeFromStart = Math.max(0, effectiveCurrentTime - activeTextClip.start);
+      const timeToEnd = Math.max(0, activeTextClip.end - effectiveCurrentTime);
 
       if (currentAnimation !== 'none') {
         const inProgress = Math.min(1, timeFromStart / currentAnimDur);
@@ -437,14 +452,14 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       const introDur = transitionConfig?.introDuration || 0.8;
       const outroDur = transitionConfig?.outroDuration || 0.8;
       let scale = 1.0;
-      if (transitionConfig?.intro === 'zoom_in' && currentTime < introDur) {
-        const p = currentTime / introDur;
+      if (transitionConfig?.intro === 'zoom_in' && effectiveCurrentTime < introDur) {
+        const p = effectiveCurrentTime / introDur;
         scale = 1.15 - 0.15 * p;
       } else if (
         transitionConfig?.outro === 'zoom_out' &&
-        currentTime > Math.max(0, duration - outroDur)
+        effectiveCurrentTime > Math.max(0, duration - outroDur)
       ) {
-        const p = (currentTime - (duration - outroDur)) / outroDur;
+        const p = (effectiveCurrentTime - (duration - outroDur)) / outroDur;
         scale = 1.0 - 0.15 * Math.min(1, Math.max(0, p));
       }
 
@@ -468,12 +483,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
       // Crossfade transition between consecutive clips (per-cut or global setting)
       if (videoClips && videoClips.length > 1 && isCrossfading && nextClip) {
-        const p = Math.min(1, Math.max(0, (currentTime - (cutTime - transDur)) / transDur));
+        const p = Math.min(1, Math.max(0, (effectiveCurrentTime - (cutTime - transDur)) / transDur));
         const nextV = clipVideosRef.current.get(nextClip.id);
         if (nextV && nextV.videoWidth > 0) {
           if (isPlaying && nextV.paused) {
             try {
-              nextV.currentTime = Math.max(0, currentTime - (cutTime - transDur));
+              nextV.currentTime = Math.max(0, effectiveCurrentTime - (cutTime - transDur));
               nextV.muted = isMuted;
               nextV.volume = targetVol;
               nextV.play().catch(() => {});
@@ -516,7 +531,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // SYNCED SUBTITLE CALCULATION WITH ACOUSTIC ONSET OFFSET
     // -------------------------------------------------------------
     const syncOffset = textConfig.subtitleSyncOffset ?? 0.20;
-    const effectiveTime = currentTime - syncOffset;
+    const effectiveTime = effectiveCurrentTime - syncOffset;
     let displaySub = subtitles.find(
       (sub) => effectiveTime >= sub.start && effectiveTime <= sub.end
     );
@@ -1068,8 +1083,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             0.6;
           const half = transDur / 2;
           const cutTime = nextClip.start;
-          if (currentTime >= cutTime - half && currentTime <= cutTime + half) {
-            const p = (currentTime - (cutTime - half)) / transDur;
+          if (effectiveCurrentTime >= cutTime - half && effectiveCurrentTime <= cutTime + half) {
+            const p = (effectiveCurrentTime - (cutTime - half)) / transDur;
             if (cutTransition === 'fade_black') {
               const alpha = Math.min(1, Math.max(0, 1 - Math.abs(p - 0.5) * 2));
               ctx.save();
@@ -1097,8 +1112,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     const introDur = transitionConfig?.introDuration || 0.8;
     const outroDur = transitionConfig?.outroDuration || 0.8;
 
-    if (transitionConfig?.intro === 'fade_in' && currentTime < introDur) {
-      const alpha = Math.max(0, 1 - currentTime / introDur);
+    if (transitionConfig?.intro === 'fade_in' && effectiveCurrentTime < introDur) {
+      const alpha = Math.max(0, 1 - effectiveCurrentTime / introDur);
       ctx.save();
       ctx.fillStyle = '#000000';
       ctx.globalAlpha = alpha;
@@ -1106,11 +1121,11 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       ctx.restore();
     } else if (
       transitionConfig?.outro === 'fade_out' &&
-      currentTime > Math.max(0, duration - outroDur)
+      effectiveCurrentTime > Math.max(0, duration - outroDur)
     ) {
       const alpha = Math.min(
         1,
-        Math.max(0, (currentTime - (duration - outroDur)) / outroDur)
+        Math.max(0, (effectiveCurrentTime - (duration - outroDur)) / outroDur)
       );
       ctx.save();
       ctx.fillStyle = '#000000';
