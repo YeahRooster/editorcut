@@ -194,6 +194,18 @@ export class BackgroundMusicPlayer {
     return this.currentTheme;
   }
 
+  stopStandalone() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.audioEl) {
+      this.audioEl.pause();
+      this.audioEl.currentTime = 0;
+    }
+    this.currentTheme = 'none';
+  }
+
   constructor() {
     // Lazy init audio context on user interaction
   }
@@ -275,6 +287,7 @@ export class BackgroundMusicPlayer {
   }
 
   playCustomAudio(url: string, volume: number, startTime = 0, loop = false) {
+    this.stopAllClips();
     if (!this.audioEl) {
       this.audioEl = new Audio();
     }
@@ -300,10 +313,14 @@ export class BackgroundMusicPlayer {
    */
   syncClips(clips: Array<{ id: string; url: string | null; start: number; duration: number; volume: number; isLoop: boolean; isMuted?: boolean }>, currentTime: number, isPlaying: boolean) {
     if (!isPlaying) {
-      this.clipAudios.forEach((audio) => {
-        if (!audio.paused) audio.pause();
-      });
+      this.pauseAllClips();
       return;
+    }
+
+    // Crucial: When timeline audio clips are active, silence any standalone preview audio element
+    // or synthetic chords to prevent duplicate audio streams / echo!
+    if (clips.length > 0) {
+      this.stopStandalone();
     }
 
     clips.forEach((clip) => {
@@ -316,6 +333,9 @@ export class BackgroundMusicPlayer {
         audio = new Audio(clip.url);
         audio.loop = clip.isLoop;
         this.clipAudios.set(clip.id, audio);
+      } else if (audio.src !== clip.url) {
+        audio.src = clip.url;
+        audio.loop = clip.isLoop;
       }
 
       if (isActive) {
@@ -333,8 +353,8 @@ export class BackgroundMusicPlayer {
             audio.currentTime = Math.max(0, relTime);
           } catch (e) {}
           audio.play().catch(() => {});
-        } else if (Math.abs(audio.currentTime - relTime) > 1.2) {
-          // Only re-seek if drift is substantial (e.g. user scrubbed or jumped on timeline)
+        } else if (Math.abs(audio.currentTime - relTime) > 0.35) {
+          // Re-seek if scrubbed or jumped on timeline
           try {
             audio.currentTime = Math.max(0, relTime);
           } catch (e) {}
@@ -354,6 +374,7 @@ export class BackgroundMusicPlayer {
     this.clipAudios.forEach((audio, id) => {
       if (!activeIds.has(id)) {
         audio.pause();
+        audio.src = '';
         this.clipAudios.delete(id);
       }
     });
@@ -378,9 +399,23 @@ export class BackgroundMusicPlayer {
     });
   }
 
+  pauseAllClips() {
+    this.clipAudios.forEach((audio) => {
+      if (!audio.paused) {
+        try {
+          audio.pause();
+        } catch (e) {}
+      }
+    });
+  }
+
   stopAllClips() {
     this.clipAudios.forEach((audio) => {
-      audio.pause();
+      if (!audio.paused) {
+        try {
+          audio.pause();
+        } catch (e) {}
+      }
       try {
         audio.currentTime = 0;
       } catch (e) {}
@@ -534,6 +569,7 @@ export class BackgroundMusicPlayer {
     if (this.audioEl) {
       this.audioEl.pause();
     }
+    this.pauseAllClips();
   }
 
   stop() {
@@ -546,6 +582,7 @@ export class BackgroundMusicPlayer {
       this.audioEl.pause();
       this.audioEl.currentTime = 0;
     }
+    this.stopAllClips();
   }
 
   getAudioContext(): AudioContext | null {

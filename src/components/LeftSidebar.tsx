@@ -284,7 +284,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         start: currentTime,
         duration: dur,
       }));
-      musicPlayer.playCustomAudio(url, audioConfig.isMuted ? 0 : audioConfig.volume, 0, false);
+      musicPlayer.stopStandalone();
     };
   };
 

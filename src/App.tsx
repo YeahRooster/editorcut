@@ -411,12 +411,19 @@ export const App: React.FC = () => {
       }
 
       const effAddedVol = audioConfig.isMuted ? 0 : audioConfig.volume;
-      if (audioConfig.presetTheme !== 'none') {
-        musicPlayer.playTheme(audioConfig.presetTheme, effAddedVol);
-      } else if (audioConfig.url) {
-        musicPlayer.playCustomAudio(audioConfig.url, effAddedVol, startTime, audioConfig.isLoop);
+      if (audioClips && audioClips.length > 0) {
+        // MULTITRACK AUDIO TIMELINE:
+        // Silences any standalone audio element or preset chords and synchronizes multitrack clips
+        musicPlayer.stopStandalone();
+        musicPlayer.syncClips(audioClips, startTime, true);
+      } else {
+        // Fallback for single track mode ONLY when no timeline clips exist
+        if (audioConfig.presetTheme !== 'none') {
+          musicPlayer.playTheme(audioConfig.presetTheme, effAddedVol);
+        } else if (audioConfig.url) {
+          musicPlayer.playCustomAudio(audioConfig.url, effAddedVol, startTime, audioConfig.isLoop);
+        }
       }
-      musicPlayer.syncClips(audioClips, startTime, true);
     } else {
       setIsPlaying(false);
       videoClips.forEach((c) => {
@@ -433,7 +440,6 @@ export const App: React.FC = () => {
         } catch (e) {}
       }
       musicPlayer.pause();
-      musicPlayer.stopAllClips();
     }
   };
 
@@ -491,8 +497,11 @@ export const App: React.FC = () => {
         videoRef.current = elToSeek;
       }
     }
-    musicPlayer.seek(time);
-    musicPlayer.seekClips(audioClips, time);
+    if (audioClips && audioClips.length > 0) {
+      musicPlayer.seekClips(audioClips, time);
+    } else {
+      musicPlayer.seek(time);
+    }
   };
 
   // Check if there is an autosave session available on initial startup
