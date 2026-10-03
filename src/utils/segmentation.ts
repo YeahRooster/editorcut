@@ -11,7 +11,8 @@ export class SelfieSegmenter {
   private currentModel: 0 | 1 = 0; // Default to Model 0 (General 256x256 for sharp vertical portrait/reels)
   private refineMode: 'enhanced' | 'direct' = 'enhanced';
   private lastProcessTime = 0;
-  private cachedRawMask: CanvasImageSource | null = null;
+  private maskVersion = 0;
+  private lastRefinedVersion = -1;
   private cachedThreshold = -1;
 
   constructor() {
@@ -39,6 +40,7 @@ export class SelfieSegmenter {
         this.segmenter.onResults((results: any) => {
           if (results.segmentationMask) {
             this.latestMask = results.segmentationMask;
+            this.maskVersion++;
           }
           this.isProcessing = false;
         });
@@ -82,7 +84,8 @@ export class SelfieSegmenter {
 
   clearMask() {
     this.latestMask = null;
-    this.cachedRawMask = null;
+    this.maskVersion = 0;
+    this.lastRefinedVersion = -1;
     this.cachedThreshold = -1;
     if (this.maskCtx) {
       this.maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
@@ -94,6 +97,15 @@ export class SelfieSegmenter {
 
   async processFrame(imageSource: CanvasImageSource): Promise<boolean> {
     if (this.isProcessing) return false;
+
+    // Safety checks for HTMLVideoElement:
+    const vEl = imageSource as any;
+    if (vEl.readyState !== undefined && vEl.readyState < 2) {
+      return false;
+    }
+    if ((vEl.videoWidth !== undefined && vEl.videoWidth === 0) || (vEl.naturalWidth !== undefined && vEl.naturalWidth === 0)) {
+      return false;
+    }
 
     // Rate-limit MediaPipe frame sending to max ~30fps to avoid saturating GPU / main thread
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -139,13 +151,13 @@ export class SelfieSegmenter {
     if (this.refinedCanvas.width !== w || this.refinedCanvas.height !== h) {
       this.refinedCanvas.width = w;
       this.refinedCanvas.height = h;
-      this.cachedRawMask = null;
+      this.lastRefinedVersion = -1;
     }
 
     if (!this.refinedCtx) return this.refinedCanvas;
 
     // Return cached refined mask if same source and threshold (skips 262k pixel loop!)
-    if (this.cachedRawMask === rawMask && this.cachedThreshold === threshold) {
+    if (this.lastRefinedVersion === this.maskVersion && this.cachedThreshold === threshold) {
       return this.refinedCanvas;
     }
 
@@ -190,7 +202,7 @@ export class SelfieSegmenter {
     }
 
     this.refinedCtx.putImageData(imgData, 0, 0);
-    this.cachedRawMask = rawMask;
+    this.lastRefinedVersion = this.maskVersion;
     this.cachedThreshold = threshold;
     return this.refinedCanvas;
   }

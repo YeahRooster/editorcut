@@ -127,6 +127,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       : null) ||
     (textClips && textClips.length > 0 ? textClips[0] : null);
 
+  const currentEffectiveMode = activeEditingClip?.mode || textConfig.mode || 'behind_subject';
+
+  const handleModeChange = (newMode: 'behind_subject' | 'editorial_poster' | 'dynamic_subtitles' | 'classic_subtitles') => {
+    setTextConfig((prev) => ({
+      ...prev,
+      enabled: true,
+      mode: newMode,
+      segmentationActive: newMode === 'behind_subject',
+    }));
+    if (activeEditingClip && setTextClips) {
+      setTextClips((prev) =>
+        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, mode: newMode } : c))
+      );
+    }
+  };
+
 
   // File upload handler for media (automatically appends if a video already exists)
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1090,17 +1106,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 {/* Mode 1: Behind Subject */}
                 <button
-                  onClick={() =>
-                    setTextConfig((prev) => ({
-                      ...prev,
-                      enabled: true,
-                      mode: 'behind_subject',
-                      segmentationActive: true,
-                    }))
-                  }
+                  type="button"
+                  onClick={() => handleModeChange('behind_subject')}
                   className={`p-3 rounded-xl border text-left flex flex-col justify-between transition ${
-                    textConfig.enabled && textConfig.mode === 'behind_subject'
-                      ? 'border-rose-500 bg-rose-500/10 text-white shadow'
+                    currentEffectiveMode === 'behind_subject'
+                      ? 'border-rose-500 bg-rose-500/10 text-white shadow ring-1 ring-rose-500/50'
                       : 'border-neutral-800 bg-neutral-950/60 text-neutral-400 hover:border-neutral-700'
                   }`}
                 >
@@ -1113,17 +1123,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                 {/* Mode 2: Editorial Poster */}
                 <button
-                  onClick={() =>
-                    setTextConfig((prev) => ({
-                      ...prev,
-                      enabled: true,
-                      mode: 'editorial_poster',
-                      segmentationActive: false,
-                    }))
-                  }
+                  type="button"
+                  onClick={() => handleModeChange('editorial_poster')}
                   className={`p-3 rounded-xl border text-left flex flex-col justify-between transition ${
-                    textConfig.enabled && textConfig.mode === 'editorial_poster'
-                      ? 'border-rose-500 bg-rose-500/10 text-white shadow'
+                    currentEffectiveMode === 'editorial_poster'
+                      ? 'border-rose-500 bg-rose-500/10 text-white shadow ring-1 ring-rose-500/50'
                       : 'border-neutral-800 bg-neutral-950/60 text-neutral-400 hover:border-neutral-700'
                   }`}
                 >
@@ -1136,17 +1140,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                 {/* Mode 3: Dynamic Subtitles */}
                 <button
-                  onClick={() =>
-                    setTextConfig((prev) => ({
-                      ...prev,
-                      enabled: true,
-                      mode: 'dynamic_subtitles',
-                      segmentationActive: false,
-                    }))
-                  }
+                  type="button"
+                  onClick={() => handleModeChange('dynamic_subtitles')}
                   className={`p-3 rounded-xl border text-left flex flex-col justify-between transition ${
-                    textConfig.enabled && textConfig.mode === 'dynamic_subtitles'
-                      ? 'border-rose-500 bg-rose-500/10 text-white shadow'
+                    currentEffectiveMode === 'dynamic_subtitles'
+                      ? 'border-rose-500 bg-rose-500/10 text-white shadow ring-1 ring-rose-500/50'
                       : 'border-neutral-800 bg-neutral-950/60 text-neutral-400 hover:border-neutral-700'
                   }`}
                 >
@@ -1159,17 +1157,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                 {/* Mode 4: Classic Subtitles */}
                 <button
-                  onClick={() =>
-                    setTextConfig((prev) => ({
-                      ...prev,
-                      enabled: true,
-                      mode: 'classic_subtitles',
-                      segmentationActive: false,
-                    }))
-                  }
+                  type="button"
+                  onClick={() => handleModeChange('classic_subtitles')}
                   className={`p-3 rounded-xl border text-left flex flex-col justify-between transition ${
-                    textConfig.enabled && textConfig.mode === 'classic_subtitles'
-                      ? 'border-rose-500 bg-rose-500/10 text-white shadow'
+                    currentEffectiveMode === 'classic_subtitles'
+                      ? 'border-rose-500 bg-rose-500/10 text-white shadow ring-1 ring-rose-500/50'
                       : 'border-neutral-800 bg-neutral-950/60 text-neutral-400 hover:border-neutral-700'
                   }`}
                 >
@@ -1260,16 +1252,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    const pos = { x: 12, y: 42 };
                     setTextConfig((prev) => ({
                       ...prev,
-                      textPosition: { x: 12, y: 42 },
+                      textPosition: pos,
                       textAlign: 'left',
                       fontFamily: 'Bebas Neue',
-                    }))
-                  }
+                    }));
+                    if (activeEditingClip && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, position: pos, fontFamily: 'Bebas Neue' } : c))
+                      );
+                    }
+                  }}
                   className={`py-2 px-1 rounded-xl text-[11px] font-bold border flex flex-col items-center gap-0.5 transition ${
-                    textConfig.textAlign === 'left' && textConfig.textPosition.x < 30
+                    textConfig.textAlign === 'left' && (activeEditingClip?.position?.x ?? textConfig.textPosition.x) < 30
                       ? 'border-rose-500 bg-rose-500/15 text-white shadow'
                       : 'border-neutral-800 bg-neutral-950 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
@@ -1281,17 +1279,23 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    const pos = { x: 50, y: 30 };
                     setTextConfig((prev) => ({
                       ...prev,
-                      textPosition: { x: 50, y: 30 },
+                      textPosition: pos,
                       textAlign: 'center',
-                    }))
-                  }
+                    }));
+                    if (activeEditingClip && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, position: pos } : c))
+                      );
+                    }
+                  }}
                   className={`py-2 px-1 rounded-xl text-[11px] font-bold border flex flex-col items-center gap-0.5 transition ${
                     textConfig.textAlign === 'center' &&
-                    textConfig.textPosition.y >= 20 &&
-                    textConfig.textPosition.y <= 40
+                    (activeEditingClip?.position?.y ?? textConfig.textPosition.y) >= 20 &&
+                    (activeEditingClip?.position?.y ?? textConfig.textPosition.y) <= 40
                       ? 'border-rose-500 bg-rose-500/15 text-white shadow'
                       : 'border-neutral-800 bg-neutral-950 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
@@ -1303,16 +1307,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    const pos = { x: 88, y: 42 };
                     setTextConfig((prev) => ({
                       ...prev,
-                      textPosition: { x: 88, y: 42 },
+                      textPosition: pos,
                       textAlign: 'right',
                       fontFamily: 'Bebas Neue',
-                    }))
-                  }
+                    }));
+                    if (activeEditingClip && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, position: pos, fontFamily: 'Bebas Neue' } : c))
+                      );
+                    }
+                  }}
                   className={`py-2 px-1 rounded-xl text-[11px] font-bold border flex flex-col items-center gap-0.5 transition ${
-                    textConfig.textAlign === 'right' && textConfig.textPosition.x > 70
+                    textConfig.textAlign === 'right' && (activeEditingClip?.position?.x ?? textConfig.textPosition.x) > 70
                       ? 'border-rose-500 bg-rose-500/15 text-white shadow'
                       : 'border-neutral-800 bg-neutral-950 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
@@ -1423,10 +1433,16 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     Tipografía
                   </label>
                   <select
-                    value={textConfig.fontFamily}
-                    onChange={(e) =>
-                      setTextConfig((prev) => ({ ...prev, fontFamily: e.target.value }))
-                    }
+                    value={activeEditingClip?.fontFamily || textConfig.fontFamily}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTextConfig((prev) => ({ ...prev, fontFamily: val }));
+                      if (activeEditingClip && setTextClips) {
+                        setTextClips((prev) =>
+                          prev.map((c) => (c.id === activeEditingClip.id ? { ...c, fontFamily: val } : c))
+                        );
+                      }
+                    }}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2 text-xs text-white focus:border-rose-500 focus:outline-none"
                   >
                     <option value="Bebas Neue">Bebas Neue (Impacto)</option>
@@ -1444,14 +1460,20 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
-                      value={textConfig.textColor}
-                      onChange={(e) =>
-                        setTextConfig((prev) => ({ ...prev, textColor: e.target.value }))
-                      }
+                      value={activeEditingClip?.textColor || textConfig.textColor}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTextConfig((prev) => ({ ...prev, textColor: val }));
+                        if (activeEditingClip && setTextClips) {
+                          setTextClips((prev) =>
+                            prev.map((c) => (c.id === activeEditingClip.id ? { ...c, textColor: val } : c))
+                          );
+                        }
+                      }}
                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
                     />
                     <span className="text-xs font-mono text-neutral-400">
-                      {textConfig.textColor}
+                      {activeEditingClip?.textColor || textConfig.textColor}
                     </span>
                   </div>
                 </div>
@@ -1460,42 +1482,62 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <div>
                 <div className="flex justify-between text-xs text-neutral-400 mb-1">
                   <span>Tamaño del Título</span>
-                  <span className="font-bold text-neutral-200">{textConfig.fontSize}%</span>
+                  <span className="font-bold text-neutral-200">{activeEditingClip?.fontSize ?? textConfig.fontSize}%</span>
                 </div>
                 <input
                   type="range"
                   min={12}
                   max={65}
-                  value={textConfig.fontSize}
-                  onChange={(e) =>
+                  value={activeEditingClip?.fontSize ?? textConfig.fontSize}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
                     setTextConfig((prev) => ({
                       ...prev,
-                      fontSize: parseInt(e.target.value),
-                    }))
-                  }
+                      fontSize: val,
+                    }));
+                    if (activeEditingClip && setTextClips) {
+                      setTextClips((prev) =>
+                        prev.map((c) => (c.id === activeEditingClip.id ? { ...c, fontSize: val } : c))
+                      );
+                    }
+                  }}
                   className="w-full h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
                 />
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const cur = activeEditingClip?.fontSize ?? textConfig.fontSize ?? 28;
+                      const next = Math.max(12, cur - 4);
                       setTextConfig((prev) => ({
                         ...prev,
-                        fontSize: Math.max(12, (prev.fontSize || 28) - 4),
-                      }))
-                    }
+                        fontSize: next,
+                      }));
+                      if (activeEditingClip && setTextClips) {
+                        setTextClips((prev) =>
+                          prev.map((c) => (c.id === activeEditingClip.id ? { ...c, fontSize: next } : c))
+                        );
+                      }
+                    }}
                     className="py-1.5 px-2 text-xs bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-neutral-200 font-semibold flex items-center justify-center gap-1 transition"
                   >
                     <span>➖ Achicar Título</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const cur = activeEditingClip?.fontSize ?? textConfig.fontSize ?? 28;
+                      const next = Math.min(75, cur + 4);
                       setTextConfig((prev) => ({
                         ...prev,
-                        fontSize: Math.min(75, (prev.fontSize || 28) + 4),
-                      }))
-                    }
+                        fontSize: next,
+                      }));
+                      if (activeEditingClip && setTextClips) {
+                        setTextClips((prev) =>
+                          prev.map((c) => (c.id === activeEditingClip.id ? { ...c, fontSize: next } : c))
+                        );
+                      }
+                    }}
                     className="py-1.5 px-2 text-xs bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-neutral-200 font-semibold flex items-center justify-center gap-1 transition"
                   >
                     <span>➕ Agrandar Título</span>
@@ -1508,7 +1550,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </div>
 
             {/* Opciones Especiales según el modo */}
-            {textConfig.mode === 'editorial_poster' && (
+            {currentEffectiveMode === 'editorial_poster' && (
               <div className="space-y-2 pt-2 border-t border-neutral-800">
                 <h3 className="text-xs font-bold text-neutral-300">Elementos Gráficos</h3>
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-300">
@@ -1545,7 +1587,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </div>
             )}
 
-            {textConfig.mode === 'behind_subject' && (
+            {currentEffectiveMode === 'behind_subject' && (
               <div className="pt-2 border-t border-neutral-800 space-y-3">
                 <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 flex items-start gap-2">
                   <Wand2 className="w-4 h-4 mt-0.5 flex-shrink-0" />

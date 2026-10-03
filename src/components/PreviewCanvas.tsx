@@ -347,6 +347,76 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       sourceHeight = staticImgRef.current.naturalHeight || cHeight;
     }
 
+    // -------------------------------------------------------------
+    // ACTIVE TITLE & TEXT ANIMATION ENGINE
+    // -------------------------------------------------------------
+    const activeTextClip = (textClips && textClips.length > 0)
+      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
+         (!isPlaying && selectedTimelineItem?.track === 'text'
+           ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
+           : null))
+      : null;
+
+    // When textClips array is active, NEVER show any ghost title outside clip boundaries!
+    const hasActiveTitle = (textClips && textClips.length > 0)
+      ? (!!activeTextClip && activeTextClip.text.trim().length > 0)
+      : (textConfig.enabled && !!textConfig.primaryText && textConfig.primaryText.trim().length > 0);
+
+    const currentTitleText = activeTextClip
+      ? activeTextClip.text
+      : (textClips && textClips.length > 0 ? '' : textConfig.primaryText);
+    const currentSecondaryText = activeTextClip?.secondaryText !== undefined
+      ? activeTextClip.secondaryText
+      : (textClips && textClips.length > 0 ? '' : textConfig.secondaryText);
+    const currentTitlePos = activeTextClip?.position || textConfig.textPosition || { x: 50, y: 30 };
+    const currentFontSize = activeTextClip?.fontSize ?? textConfig.fontSize ?? 28;
+    const currentFontFamily = activeTextClip?.fontFamily || textConfig.fontFamily || 'Bebas Neue';
+    const currentTextColor = activeTextClip?.textColor || textConfig.textColor || '#ffffff';
+    const currentMode = activeTextClip?.mode || textConfig.mode || 'behind_subject';
+    const currentAnimation = activeTextClip?.animation || textConfig.animation || 'fade';
+    const currentAnimDur = Math.max(0.1, activeTextClip?.animationDuration ?? textConfig.animationDuration ?? 0.5);
+
+    let animOpacity = 1;
+    let animOffsetX = 0;
+    let animOffsetY = 0;
+    let animScale = 1;
+
+    if (activeTextClip) {
+      const timeFromStart = Math.max(0, currentTime - activeTextClip.start);
+      const timeToEnd = Math.max(0, activeTextClip.end - currentTime);
+
+      if (currentAnimation !== 'none') {
+        const inProgress = Math.min(1, timeFromStart / currentAnimDur);
+        const outProgress = Math.min(1, timeToEnd / currentAnimDur);
+
+        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+        const inEase = easeOutCubic(inProgress);
+        const outEase = easeOutCubic(outProgress);
+
+        animOpacity = Math.min(inEase, outEase);
+
+        if (currentAnimation === 'slide_left') {
+          if (inProgress < 1) {
+            animOffsetX = (1 - inEase) * (-cWidth * 0.22);
+          } else if (outProgress < 1) {
+            animOffsetX = (1 - outEase) * (cWidth * 0.15);
+          }
+        } else if (currentAnimation === 'slide_bottom') {
+          if (inProgress < 1) {
+            animOffsetY = (1 - inEase) * (cHeight * 0.12);
+          } else if (outProgress < 1) {
+            animOffsetY = (1 - outEase) * (cHeight * 0.08);
+          }
+        } else if (currentAnimation === 'zoom') {
+          if (inProgress < 1) {
+            animScale = 0.75 + 0.25 * inEase;
+          } else if (outProgress < 1) {
+            animScale = 1 + (1 - outEase) * 0.08;
+          }
+        }
+      }
+    }
+
     let centerShiftX = 0;
     let centerShiftY = 0;
     let destW = cWidth;
@@ -429,7 +499,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       ctx.restore();
 
       // Trigger MediaPipe segmentation frame update if behind_subject is active
-      if (textConfig.mode === 'behind_subject') {
+      if (currentMode === 'behind_subject' || textConfig.mode === 'behind_subject') {
         selfieSegmenter.processFrame(activeSource);
       }
     } else {
@@ -455,174 +525,102 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
 
     const isSubBehindPerson =
-      textConfig.mode === 'behind_subject' &&
+      currentMode === 'behind_subject' &&
       (textConfig.subtitleStyle === 'behind_subject' || textConfig.useSubtitlesAsMainTitle);
 
     // -------------------------------------------------------------
-    // ACTIVE TITLE & TEXT ANIMATION ENGINE
-    // -------------------------------------------------------------
-    // Only show clip if playhead is strictly inside its start..end range,
-    // OR if video is paused and user specifically clicked this text clip in the timeline
-    const activeTextClip = (textClips && textClips.length > 0)
-      ? (textClips.find((c) => currentTime >= c.start && currentTime <= c.end) ||
-         (!isPlaying && selectedTimelineItem?.track === 'text'
-           ? textClips.find((c) => c.id === selectedTimelineItem.id) || null
-           : null))
-      : null;
-
-    // When textClips array is active, NEVER show any ghost title outside clip boundaries!
-    const hasActiveTitle = (textClips && textClips.length > 0)
-      ? (!!activeTextClip && activeTextClip.text.trim().length > 0)
-      : (textConfig.enabled && !!textConfig.primaryText && textConfig.primaryText.trim().length > 0);
-
-    const currentTitleText = activeTextClip
-      ? activeTextClip.text
-      : (textClips && textClips.length > 0 ? '' : textConfig.primaryText);
-    const currentSecondaryText = activeTextClip?.secondaryText !== undefined
-      ? activeTextClip.secondaryText
-      : (textClips && textClips.length > 0 ? '' : textConfig.secondaryText);
-    const currentTitlePos = activeTextClip?.position || textConfig.textPosition || { x: 50, y: 30 };
-    const currentFontSize = activeTextClip?.fontSize ?? textConfig.fontSize ?? 28;
-    const currentFontFamily = activeTextClip?.fontFamily || textConfig.fontFamily || 'Bebas Neue';
-    const currentTextColor = activeTextClip?.textColor || textConfig.textColor || '#ffffff';
-    const currentMode = activeTextClip?.mode || textConfig.mode || 'behind_subject';
-    const currentAnimation = activeTextClip?.animation || textConfig.animation || 'fade';
-    const currentAnimDur = Math.max(0.1, activeTextClip?.animationDuration ?? textConfig.animationDuration ?? 0.5);
-
-    let animOpacity = 1;
-    let animOffsetX = 0;
-    let animOffsetY = 0;
-    let animScale = 1;
-
-    if (activeTextClip) {
-      const timeFromStart = Math.max(0, currentTime - activeTextClip.start);
-      const timeToEnd = Math.max(0, activeTextClip.end - currentTime);
-
-      if (currentAnimation !== 'none') {
-        const inProgress = Math.min(1, timeFromStart / currentAnimDur);
-        const outProgress = Math.min(1, timeToEnd / currentAnimDur);
-
-        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-        const inEase = easeOutCubic(inProgress);
-        const outEase = easeOutCubic(outProgress);
-
-        animOpacity = Math.min(inEase, outEase);
-
-        if (currentAnimation === 'slide_left') {
-          if (inProgress < 1) {
-            animOffsetX = (1 - inEase) * (-cWidth * 0.22);
-          } else if (outProgress < 1) {
-            animOffsetX = (1 - outEase) * (cWidth * 0.15);
-          }
-        } else if (currentAnimation === 'slide_bottom') {
-          if (inProgress < 1) {
-            animOffsetY = (1 - inEase) * (cHeight * 0.12);
-          } else if (outProgress < 1) {
-            animOffsetY = (1 - outEase) * (cHeight * 0.08);
-          }
-        } else if (currentAnimation === 'zoom') {
-          if (inProgress < 1) {
-            animScale = 0.75 + 0.25 * inEase;
-          } else if (outProgress < 1) {
-            animScale = 1 + (1 - outEase) * 0.08;
-          }
-        }
-      }
-    }
-
-    // -------------------------------------------------------------
-    // LAYER: BEHIND SUBJECT TEXT (Curug Sawer / Just Do It style)
+    // LAYER: TITLE RENDERING (MUTUALLY EXCLUSIVE BY currentMode)
     // -------------------------------------------------------------
     const hasStaticTitle = hasActiveTitle;
     const hasDynamicSubAsTitle = textConfig.useSubtitlesAsMainTitle && displaySub && displaySub.text.trim().length > 0;
     const hasSeparateSubBehind = !textConfig.useSubtitlesAsMainTitle && textConfig.subtitleStyle === 'behind_subject' && displaySub && displaySub.text.trim().length > 0;
 
-    if (currentMode === 'behind_subject' && (hasStaticTitle || hasDynamicSubAsTitle || hasSeparateSubBehind)) {
-      // 1. Render primary headline behind the person (with smooth animation entrance/exit)
-      const textToRender = textConfig.useSubtitlesAsMainTitle
-        ? (displaySub?.text || currentTitleText || '')
-        : currentTitleText;
+    if (currentMode === 'behind_subject') {
+      // -----------------------------------------------------------
+      // 1. BEHIND SUBJECT MODE: Text rendered strictly BEHIND person
+      // -----------------------------------------------------------
+      if (hasStaticTitle || hasDynamicSubAsTitle || hasSeparateSubBehind) {
+        const textToRender = textConfig.useSubtitlesAsMainTitle
+          ? (displaySub?.text || currentTitleText || '')
+          : currentTitleText;
 
-      if (textToRender && textToRender.trim().length > 0) {
-        const textX = (cWidth * currentTitlePos.x) / 100;
-        const textY = (cHeight * currentTitlePos.y) / 100;
-        const textAlign = textConfig.textAlign || 'center';
+        if (textToRender && textToRender.trim().length > 0) {
+          const textX = (cWidth * currentTitlePos.x) / 100;
+          const textY = (cHeight * currentTitlePos.y) / 100;
+          const textAlign = textConfig.textAlign || 'center';
 
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
 
-        if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
-          ctx.translate(textX + animOffsetX, textY + animOffsetY);
-          ctx.scale(animScale, animScale);
-          ctx.translate(-textX, -textY);
+          if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
+            ctx.translate(textX + animOffsetX, textY + animOffsetY);
+            ctx.scale(animScale, animScale);
+            ctx.translate(-textX, -textY);
+          }
+
+          ctx.textAlign = textAlign;
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = currentTextColor;
+
+          // Primary massive text
+          const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
+          ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
+
+          // Multi-line support if text has newlines or spaces
+          const lines = textToRender.split('\n');
+          const lineHeight = computedFontSize * 0.95;
+          const startY = textY - ((lines.length - 1) * lineHeight) / 2;
+
+          lines.forEach((line: string, index: number) => {
+            ctx.shadowColor = 'rgba(0,0,0,0.75)';
+            ctx.shadowBlur = 18;
+            ctx.fillText(line.toUpperCase(), textX, startY + index * lineHeight);
+          });
+          ctx.restore();
         }
 
-        ctx.textAlign = textAlign;
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = currentTextColor;
+        // Separate dynamic subtitle behind the person
+        if (hasSeparateSubBehind) {
+          const subX = (cWidth * (textConfig.subtitlePosition?.x ?? 50)) / 100;
+          const subY = (cHeight * (textConfig.subtitlePosition?.y ?? 65)) / 100;
+          const subSizePct = textConfig.subtitleStyle === 'giant_headline' || textConfig.subtitleStyle === 'behind_subject'
+            ? Math.max(textConfig.subtitleFontSize || 22, 16)
+            : (textConfig.subtitleFontSize || 5.5);
+          const subFontSize = Math.round(cWidth * (subSizePct / 100));
 
-        // Primary massive text
-        const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
-        ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
-
-        // Multi-line support if text has newlines or spaces
-        const lines = textToRender.split('\n');
-        const lineHeight = computedFontSize * 0.95;
-        const startY = textY - ((lines.length - 1) * lineHeight) / 2;
-
-        lines.forEach((line: string, index: number) => {
-          // Subtle soft shadow behind the letters
-          ctx.shadowColor = 'rgba(0,0,0,0.75)';
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = textConfig.subtitleColor || '#ffffff';
+          ctx.font = `900 ${subFontSize}px "${textConfig.fontFamily || 'Bebas Neue'}", sans-serif`;
+          ctx.shadowColor = 'rgba(0,0,0,0.85)';
           ctx.shadowBlur = 18;
-          ctx.fillText(line.toUpperCase(), textX, startY + index * lineHeight);
-        });
-        ctx.restore();
+          ctx.fillText(displaySub!.text.toUpperCase(), subX, subY);
+          ctx.restore();
+        }
       }
 
-      // 2. If separate dynamic subtitle is also placed behind the person (coexisting with static title)
-      if (hasSeparateSubBehind) {
-        const subX = (cWidth * (textConfig.subtitlePosition?.x ?? 50)) / 100;
-        const subY = (cHeight * (textConfig.subtitlePosition?.y ?? 65)) / 100;
-        const subSizePct = textConfig.subtitleStyle === 'giant_headline' || textConfig.subtitleStyle === 'behind_subject'
-          ? Math.max(textConfig.subtitleFontSize || 22, 16)
-          : (textConfig.subtitleFontSize || 5.5);
-        const subFontSize = Math.round(cWidth * (subSizePct / 100));
-
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = textConfig.subtitleColor || '#ffffff';
-        ctx.font = `900 ${subFontSize}px "${textConfig.fontFamily || 'Bebas Neue'}", sans-serif`;
-        ctx.shadowColor = 'rgba(0,0,0,0.85)';
-        ctx.shadowBlur = 18;
-        ctx.fillText(displaySub!.text.toUpperCase(), subX, subY);
-        ctx.restore();
+      // PERSON FOREGROUND CUTOUT (MediaPipe segmentation)
+      // Placed directly ON TOP of the behind-subject text
+      if (activeSource) {
+        selfieSegmenter.drawPersonCutout(
+          ctx,
+          activeSource,
+          sourceWidth,
+          sourceHeight,
+          centerShiftX,
+          centerShiftY,
+          destW,
+          destH,
+          cWidth,
+          cHeight,
+          textConfig.maskThreshold ?? 0.26,
+          textConfig.maskFeather ?? 4
+        );
       }
-    }
 
-    // -------------------------------------------------------------
-    // LAYER: PERSON FOREGROUND CUTOUT (MediaPipe segmentation)
-    // Enhanced with sub-pixel feathering and anti-aliasing
-    // -------------------------------------------------------------
-    if (activeSource && textConfig.segmentationActive && currentMode === 'behind_subject') {
-      selfieSegmenter.drawPersonCutout(
-        ctx,
-        activeSource,
-        sourceWidth,
-        sourceHeight,
-        centerShiftX,
-        centerShiftY,
-        destW,
-        destH,
-        cWidth,
-        cHeight,
-        textConfig.maskThreshold ?? 0.26,
-        textConfig.maskFeather ?? 4
-      );
-    }
-
-      // Small secondary text ON TOP of the person (like in the Just Do It hiking photo)
-      if (currentSecondaryText && currentMode === 'behind_subject') {
+      // Secondary text ON TOP of the person (optional)
+      if (currentSecondaryText && currentSecondaryText.trim().length > 0) {
         ctx.save();
         ctx.textAlign = 'center';
         ctx.fillStyle = '#ffffff';
@@ -630,28 +628,15 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         ctx.shadowBlur = 10;
         ctx.font = '600 32px Montserrat, sans-serif';
         ctx.fillText(currentSecondaryText, cWidth / 2, cHeight * 0.22);
-
-        // Mountain or decorative icon placeholder
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        const iconY = cHeight * 0.16;
-        ctx.moveTo(cWidth / 2 - 60, iconY + 20);
-        ctx.lineTo(cWidth / 2 - 20, iconY - 20);
-        ctx.lineTo(cWidth / 2 + 10, iconY + 5);
-        ctx.lineTo(cWidth / 2 + 35, iconY - 10);
-        ctx.lineTo(cWidth / 2 + 65, iconY + 20);
-        ctx.stroke();
         ctx.restore();
       }
-
-    // -------------------------------------------------------------
-    // LAYER: EDITORIAL POSTER STYLE (Rule of Thirds style)
-    // -------------------------------------------------------------
-    if (textConfig.enabled && textConfig.mode === 'editorial_poster') {
+    } else if (currentMode === 'editorial_poster') {
+      // -----------------------------------------------------------
+      // 2. EDITORIAL POSTER MODE: Clean poster aesthetic with grid
+      // -----------------------------------------------------------
       ctx.save();
 
-      // 1. Rule of thirds grid lines
+      // Rule of thirds grid lines
       if (textConfig.showGridLines) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.lineWidth = 2;
@@ -672,80 +657,74 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         ctx.stroke();
       }
 
-      // 2. Editorial crosshair targets & circles (Reference 1)
+      // Editorial crosshairs & circles
       if (textConfig.showCrosshairs) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.lineWidth = 2;
 
-        // Top right big target circle
         const circleCenterX = (cWidth * 2) / 3;
         const circleCenterY = cHeight / 3;
         ctx.beginPath();
         ctx.arc(circleCenterX, circleCenterY, cWidth * 0.28, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Bottom left target circle
         const circle2X = cWidth / 3;
         const circle2Y = (cHeight * 2) / 3;
         ctx.beginPath();
         ctx.arc(circle2X, circle2Y, cWidth * 0.24, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Top corners "+" crosses
         ctx.font = '700 40px Space Grotesk, sans-serif';
         ctx.fillStyle = '#ffffff';
         ctx.fillText('+', 80, 100);
         ctx.fillText('+', cWidth - 100, 100);
 
-        // "X X X" vertical stack
         ctx.font = '600 28px Space Grotesk, sans-serif';
         ctx.fillText('X', cWidth / 3 - 80, (cHeight * 2) / 3 - 60);
         ctx.fillText('X', cWidth / 3 - 80, (cHeight * 2) / 3 - 25);
         ctx.fillText('X', cWidth / 3 - 80, (cHeight * 2) / 3 + 10);
       }
 
-      // 3. Main Bold Editorial Typography ("RULE OF THIRDS" - Pure, clean, animated)
-      const textX = (cWidth * currentTitlePos.x) / 100;
-      const textY = (cHeight * currentTitlePos.y) / 100;
+      // Editorial Typography
+      if (hasActiveTitle && currentTitleText && currentTitleText.trim().length > 0) {
+        const textX = (cWidth * currentTitlePos.x) / 100;
+        const textY = (cHeight * currentTitlePos.y) / 100;
 
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, animOpacity));
 
-      if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
-        ctx.translate(textX + animOffsetX, textY + animOffsetY);
-        ctx.scale(animScale, animScale);
-        ctx.translate(-textX, -textY);
-      }
+        if (animScale !== 1 || animOffsetX !== 0 || animOffsetY !== 0) {
+          ctx.translate(textX + animOffsetX, textY + animOffsetY);
+          ctx.scale(animScale, animScale);
+          ctx.translate(-textX, -textY);
+        }
 
-      ctx.fillStyle = currentTextColor;
-      ctx.textAlign = textConfig.textAlign || 'left';
+        ctx.fillStyle = currentTextColor;
+        ctx.textAlign = textConfig.textAlign || 'left';
 
-      // Massive headline (Pure title typography)
-      const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
-      ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
-      const lines = (currentTitleText || '').split('\n');
-      lines.forEach((line: string, index: number) => {
-        ctx.shadowColor = 'rgba(0,0,0,0.75)';
-        ctx.shadowBlur = 14;
-        ctx.fillText(line.toUpperCase(), textX, textY + index * (computedFontSize * 0.95));
-      });
-
-      // Sub-description block (only if user provided secondary text)
-      if (currentSecondaryText && currentSecondaryText.trim().length > 0) {
-        ctx.font = `700 28px "${currentFontFamily}", Montserrat, sans-serif`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.shadowColor = 'rgba(0,0,0,0.6)';
-        ctx.shadowBlur = 8;
-        const subLines = currentSecondaryText.split('\n');
-        subLines.forEach((sLine: string, sIdx: number) => {
-          ctx.fillText(sLine.toUpperCase(), textX, textY + lines.length * (computedFontSize * 0.95) + 30 + sIdx * 34);
+        const computedFontSize = Math.round(cWidth * (currentFontSize / 100));
+        ctx.font = `900 ${computedFontSize}px "${currentFontFamily}", sans-serif`;
+        const lines = currentTitleText.split('\n');
+        lines.forEach((line: string, index: number) => {
+          ctx.shadowColor = 'rgba(0,0,0,0.75)';
+          ctx.shadowBlur = 14;
+          ctx.fillText(line.toUpperCase(), textX, textY + index * (computedFontSize * 0.95));
         });
+
+        if (currentSecondaryText && currentSecondaryText.trim().length > 0) {
+          ctx.font = `700 28px "${currentFontFamily}", Montserrat, sans-serif`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.shadowColor = 'rgba(0,0,0,0.6)';
+          ctx.shadowBlur = 8;
+          const subLines = currentSecondaryText.split('\n');
+          subLines.forEach((sLine: string, sIdx: number) => {
+            ctx.fillText(sLine.toUpperCase(), textX, textY + lines.length * (computedFontSize * 0.95) + 30 + sIdx * 34);
+          });
+        }
+        ctx.restore();
       }
-      ctx.restore();
 
-
-
-      // 4. Frosted Glass Info Pill (Reference 2 style)
+      // Frosted Glass Info Pill
       if (textConfig.showFrostedCard && textConfig.frostedGlassCaption) {
         const cardW = cWidth * 0.85;
         const cardH = 140;
@@ -753,7 +732,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         const cardY = cHeight * 0.74;
 
         ctx.save();
-        // Glass blur simulation background
         ctx.fillStyle = 'rgba(25, 25, 25, 0.75)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.lineWidth = 2;
@@ -762,7 +740,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         ctx.fill();
         ctx.stroke();
 
-        // Caption text inside frosted glass pill
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.font = '400 24px Montserrat, Inter, sans-serif';
@@ -771,12 +748,10 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       }
 
       ctx.restore();
-    }
-
-    // -------------------------------------------------------------
-    // LAYER: STANDARD / DYNAMIC TITLE OVERLAY (Foreground text for other modes)
-    // -------------------------------------------------------------
-    if (currentMode !== 'behind_subject' && currentMode !== 'editorial_poster' && hasActiveTitle) {
+    } else if (hasActiveTitle) {
+      // -----------------------------------------------------------
+      // 3. STANDARD / DYNAMIC TITLE OVERLAY (Foreground text for other modes)
+      // -----------------------------------------------------------
       if (currentTitleText && currentTitleText.trim().length > 0) {
         const textX = (cWidth * currentTitlePos.x) / 100;
         const textY = (cHeight * currentTitlePos.y) / 100;
