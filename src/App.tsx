@@ -1858,6 +1858,9 @@ export const App: React.FC = () => {
           onSeek={handleSeek}
           textConfig={textConfig}
           setTextConfig={setTextConfig}
+          textClips={textClips}
+          setTextClips={setTextClips}
+          selectedTimelineItem={selectedTimelineItem}
           watermarkConfig={watermarkConfig}
           setWatermarkConfig={setWatermarkConfig}
           subtitles={subtitles}
