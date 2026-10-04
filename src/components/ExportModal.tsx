@@ -11,6 +11,7 @@ import {
   HardDrive 
 } from 'lucide-react';
 import type { AspectRatio, ExportQuality, ExportFPS, ExportFormat, ExportSettings } from '../types';
+import { useI18n } from '../i18n/context';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onStartExport,
   currentAspectRatio,
 }) => {
+  const { t } = useI18n();
   const [quality, setQuality] = useState<ExportQuality>('1080p');
   const [fps, setFps] = useState<ExportFPS>(60);
   const [format, setFormat] = useState<ExportFormat>('mp4');
@@ -88,6 +90,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white rounded-full hover:bg-neutral-800 transition"
+          title={t.common.close}
         >
           <X className="w-5 h-5" />
         </button>
@@ -103,9 +106,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <Sliders className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-bold text-white">Configurar Exportación</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-white">{t.exportModal.settingsTitle}</h3>
                 <p className="text-xs text-neutral-400">
-                  Selecciona la calidad, fluidez y formato para tu video final.
+                  {t.exportModal.settingsDesc}
                 </p>
               </div>
             </div>
@@ -113,7 +116,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {/* Quality Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-neutral-300 flex items-center justify-between">
-                <span>Resolución / Calidad</span>
+                <span>{t.exportModal.qualitySection}</span>
                 <span className="text-[11px] text-rose-400 font-mono font-normal">
                   {getResolutionLabel(quality)}
                 </span>
@@ -131,10 +134,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">4K Ultra HD</span>
+                    <span className="font-bold text-sm">{t.exportModal.resolution4k}</span>
                     {quality === '4k' && <Check className="w-4 h-4 text-rose-400" />}
                   </div>
-                  <div className="text-[11px] text-neutral-400 mt-0.5">Máxima nitidez profesional</div>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">{t.exportModal.resolution4kDesc}</div>
                 </button>
 
                 {/* 1080p */}
@@ -148,10 +151,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">1080p Full HD</span>
+                    <span className="font-bold text-sm">{t.exportModal.resolution1080p}</span>
                     {quality === '1080p' && <Check className="w-4 h-4 text-rose-400" />}
                   </div>
-                  <div className="text-[11px] text-rose-300/90 font-semibold mt-0.5">⭐ Recomendado (Reels/TikTok)</div>
+                  <div className="text-[11px] text-rose-300/90 font-semibold mt-0.5">{t.exportModal.resolution1080pDesc}</div>
                 </button>
 
                 {/* 720p */}
@@ -165,10 +168,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">720p HD</span>
+                    <span className="font-bold text-sm">{t.exportModal.resolution720p}</span>
                     {quality === '720p' && <Check className="w-4 h-4 text-rose-400" />}
                   </div>
-                  <div className="text-[11px] text-neutral-400 mt-0.5">Rápido y liviano</div>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">{t.exportModal.resolution720pDesc}</div>
                 </button>
 
                 {/* 480p */}
@@ -182,10 +185,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">480p SD</span>
+                    <span className="font-bold text-sm">{t.exportModal.resolution480p}</span>
                     {quality === '480p' && <Check className="w-4 h-4 text-rose-400" />}
                   </div>
-                  <div className="text-[11px] text-neutral-400 mt-0.5">Ultracompacto (WhatsApp)</div>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">{t.exportModal.resolution480pDesc}</div>
                 </button>
               </div>
             </div>
@@ -193,7 +196,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {/* Framerate / FPS Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-neutral-300">
-                Fluidez (Cuadros por segundo)
+                {t.exportModal.fpsSection}
               </label>
 
               <div className="grid grid-cols-2 gap-2">
@@ -207,8 +210,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-xs sm:text-sm">60 FPS</div>
-                    <div className="text-[10px] text-neutral-400">Ultra fluido y dinámico</div>
+                    <div className="font-bold text-xs sm:text-sm">{t.exportModal.fps60Title}</div>
+                    <div className="text-[10px] text-neutral-400">{t.exportModal.fps60Desc}</div>
                   </div>
                   {fps === 60 && <Check className="w-4 h-4 text-rose-400" />}
                 </button>
@@ -223,8 +226,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-xs sm:text-sm">30 FPS</div>
-                    <div className="text-[10px] text-neutral-400">Estándar tradicional</div>
+                    <div className="font-bold text-xs sm:text-sm">{t.exportModal.fps30Title}</div>
+                    <div className="text-[10px] text-neutral-400">{t.exportModal.fps30Desc}</div>
                   </div>
                   {fps === 30 && <Check className="w-4 h-4 text-rose-400" />}
                 </button>
@@ -234,7 +237,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {/* Format Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-neutral-300">
-                Formato de Video
+                {t.exportModal.formatSection}
               </label>
 
               <div className="grid grid-cols-2 gap-2">
@@ -248,8 +251,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-xs sm:text-sm">MP4 (H.264)</div>
-                    <div className="text-[10px] text-neutral-400">Universal (Redes, Windows, iOS)</div>
+                    <div className="font-bold text-xs sm:text-sm">{t.exportModal.formatMp4Title}</div>
+                    <div className="text-[10px] text-neutral-400">{t.exportModal.formatMp4Desc}</div>
                   </div>
                   {format === 'mp4' && <Check className="w-4 h-4 text-rose-400" />}
                 </button>
@@ -264,8 +267,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-xs sm:text-sm">WebM (VP9)</div>
-                    <div className="text-[10px] text-neutral-400">Formato abierto web</div>
+                    <div className="font-bold text-xs sm:text-sm">{t.exportModal.formatWebmTitle}</div>
+                    <div className="text-[10px] text-neutral-400">{t.exportModal.formatWebmDesc}</div>
                   </div>
                   {format === 'webm' && <Check className="w-4 h-4 text-rose-400" />}
                 </button>
@@ -279,7 +282,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 onClick={handleStart}
                 className="w-full py-3.5 px-6 bg-gradient-to-r from-rose-500 via-pink-600 to-rose-600 hover:from-rose-600 hover:to-pink-700 text-white font-extrabold rounded-2xl shadow-xl shadow-rose-950/50 flex items-center justify-center gap-2 transition transform active:scale-95 text-sm"
               >
-                <span>Comenzar Renderizado ({quality.toUpperCase()} • {fps} FPS)</span>
+                <span>{t.exportModal.startExportButton} ({quality.toUpperCase()} • {fps} FPS)</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -295,9 +298,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <Film className="w-8 h-8 text-white animate-pulse" />
             </div>
 
-            <h3 className="text-xl font-bold text-white">Renderizando Video...</h3>
+            <h3 className="text-xl font-bold text-white">{t.exportModal.renderingTitle}</h3>
             <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-              Procesando capas, texto detrás, subtítulos y audio a {quality.toUpperCase()} • {fps} FPS de forma local.
+              {t.exportModal.renderingDesc}
             </p>
 
             {/* Progress Bar */}
@@ -309,7 +312,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 />
               </div>
               <div className="flex justify-between text-xs font-mono text-neutral-400">
-                <span>Renderizando fotogramas</span>
+                <span>{t.common.loading}</span>
                 <span className="font-bold text-rose-400">{progress}%</span>
               </div>
             </div>
@@ -326,31 +329,31 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-xl font-bold text-white">¡Tu Video Está Listo!</h3>
+              <h3 className="text-xl font-bold text-white">{t.exportModal.exportSuccessTitle}</h3>
               <p className="text-xs text-neutral-400">
-                Renderizado completado con éxito y listo para publicar.
+                {t.exportModal.exportSuccessDesc}
               </p>
             </div>
 
             {/* Summary Badge Card */}
             <div className="p-4 bg-neutral-950/80 border border-neutral-800 rounded-2xl text-left space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-400 font-medium">Resolución:</span>
+                <span className="text-neutral-400 font-medium">{t.exportModal.qualitySection}:</span>
                 <span className="font-bold text-white uppercase">{quality} ({getResolutionLabel(quality)})</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-400 font-medium">Fluidez:</span>
+                <span className="text-neutral-400 font-medium">{t.exportModal.fpsSection}:</span>
                 <span className="font-bold text-white">{fps} FPS</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-400 font-medium">Formato:</span>
+                <span className="text-neutral-400 font-medium">{t.exportModal.formatSection}:</span>
                 <span className="font-bold text-white uppercase">{format}</span>
               </div>
               {fileSizeMB && (
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-800/80">
                   <span className="text-neutral-400 font-medium flex items-center gap-1">
                     <HardDrive className="w-3.5 h-3.5 text-neutral-500" />
-                    Tamaño de archivo:
+                    File Size:
                   </span>
                   <span className="font-bold text-emerald-400">{fileSizeMB} MB</span>
                 </div>
@@ -363,7 +366,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               className="w-full py-4 px-6 bg-gradient-to-r from-rose-500 via-pink-600 to-rose-600 hover:from-rose-600 hover:to-pink-700 text-white font-extrabold rounded-2xl shadow-xl shadow-rose-950/50 flex items-center justify-center gap-2 transition transform active:scale-95 text-sm"
             >
               <Download className="w-5 h-5" />
-              <span>Descargar Video Final</span>
+              <span>{t.exportModal.downloadButton}</span>
             </button>
           </div>
         )}

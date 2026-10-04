@@ -12,6 +12,7 @@ import {
   X, 
   Lightbulb
 } from 'lucide-react';
+import { useI18n } from '../i18n/context';
 
 export interface TourStep {
   id: string;
@@ -24,107 +25,6 @@ export interface TourStep {
   targetArea?: 'canvas' | 'timeline' | 'sidebar' | 'header' | 'center';
 }
 
-const TOUR_STEPS: TourStep[] = [
-  {
-    id: 'welcome',
-    title: '¡Bienvenido a EditorCut!',
-    subtitle: 'Editor de video inteligente en tu navegador',
-    description: 'Crea videos de alto impacto para Reels, TikTok y YouTube sin necesidad de instalar programas ni pagar suscripciones.',
-    tips: [
-      'Todo se procesa en tu dispositivo: 100% privado y sin subir tus archivos.',
-      'Sin marcas de agua ni limitaciones de duración.',
-      'Diseñado para funcionar rápido tanto en computadora, tableta o celular.'
-    ],
-    icon: Sparkles,
-    accentColor: 'from-rose-500 to-pink-600',
-    targetArea: 'center',
-  },
-  {
-    id: 'canvas',
-    title: 'Lienzo y Previsualización',
-    subtitle: 'Visualiza tu video en tiempo real mientras lo editas',
-    description: 'Mira cómo queda tu video con todos los efectos, animaciones y títulos en tiempo real.',
-    tips: [
-      'Arrastra con el mouse o el dedo los títulos o logos para ubicarlos donde quieras.',
-      'Haz doble clic sobre cualquier título o subtítulo para editar su texto.',
-      'Usa la barra flotante inferior para reproducir, mutear o adelantar la aguja.'
-    ],
-    icon: Monitor,
-    accentColor: 'from-sky-500 to-cyan-500',
-    targetArea: 'canvas',
-  },
-  {
-    id: 'timeline',
-    title: 'Línea de Tiempo Táctil & Tijera ✂️',
-    subtitle: 'Corta, organiza y ajusta múltiples pistas',
-    description: 'Controla exactamente en qué segundo aparece cada elemento con nuestra línea de tiempo multipista.',
-    tips: [
-      'Usa el botón "Cortar ✂️" para dividir el video en la aguja de reproducción.',
-      'Suma más videos seguidos con "+ Video" o música en "+ Sonido".',
-      'Desliza con el dedo o mouse sobre la regla de segundos para navegar suavemente.'
-    ],
-    icon: Scissors,
-    accentColor: 'from-amber-500 to-orange-500',
-    targetArea: 'timeline',
-  },
-  {
-    id: 'styles',
-    title: 'Estilos, Portada Editorial & Texto Detrás',
-    subtitle: 'El efecto viral de TikTok e Instagram en 1 clic',
-    description: 'Aplica el efecto de "texto detrás de la persona" mediante IA sin necesidad de pantalla verde.',
-    tips: [
-      'Elige el modo "Portada Editorial" para un look limpio y cinematográfico.',
-      'Activa "Detrás de persona" para que el texto quede entre el fondo y el sujeto.',
-      'Añade animaciones como Desvanecer, Zoom o Deslizar a cada título.'
-    ],
-    icon: Type,
-    accentColor: 'from-purple-500 to-pink-500',
-    targetArea: 'sidebar',
-  },
-  {
-    id: 'subtitles',
-    title: 'Subtítulos Automáticos con IA',
-    subtitle: 'Voz a texto precisa y sincronizada con 0 tokens',
-    description: 'Convierte el audio hablado de tu video en subtítulos modernos listos para redes sociales.',
-    tips: [
-      'Haz clic en "Auto Subtítulos" en el panel o en el encabezado.',
-      'Genera subtítulos en español e inglés sin consumir créditos ni registros.',
-      'Personaliza colores, tamaño y resalte de palabras en la pestaña Voz/Texto.'
-    ],
-    icon: Mic,
-    accentColor: 'from-emerald-500 to-teal-500',
-    targetArea: 'sidebar',
-  },
-  {
-    id: 'audio',
-    title: 'Música & Efectos de Sonido (SFX)',
-    subtitle: 'Dale vida y dinamismo a tus escenas',
-    description: 'Suma música de fondo temática o efectos sonoros de impacto como Whoosh, Risas o Notificaciones.',
-    tips: [
-      'Toca cualquier botón de efecto de sonido para colocarlo en la aguja actual.',
-      'Activa "Auto-Ducking" para atenuar la música cuando hables.',
-      'Controla el volumen independiente de cada sonido o silencia clips en 1 clic.'
-    ],
-    icon: Volume2,
-    accentColor: 'from-indigo-500 to-violet-500',
-    targetArea: 'sidebar',
-  },
-  {
-    id: 'export',
-    title: 'Exportación en 4K / 1080p a 60 FPS',
-    subtitle: 'Calidad profesional ultra fluida lista para descargar',
-    description: 'Renderiza tu video final en resolución 4K, 1080p Full HD, 720p o 480p según lo que necesites.',
-    tips: [
-      'Renderizado 60 FPS sin micro-lags en MP4 progresivo.',
-      'Compatible al 100% con Windows Media Player, iOS, Android y YouTube.',
-      'Guarda tu proyecto localmente para retomarlo cuando quieras.'
-    ],
-    icon: Download,
-    accentColor: 'from-rose-500 to-pink-600',
-    targetArea: 'header',
-  },
-];
-
 interface OnboardingTourProps {
   isOpen: boolean;
   onClose: () => void;
@@ -134,14 +34,88 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
 
   if (!isOpen) return null;
 
-  const currentStep = TOUR_STEPS[currentStepIndex];
+  const steps: TourStep[] = [
+    {
+      id: 'welcome',
+      title: t.tour.step1Title,
+      subtitle: t.tour.step1Subtitle,
+      description: t.tour.step1Desc,
+      tips: [t.tour.step1Tip1, t.tour.step1Tip2, t.tour.step1Tip3],
+      icon: Sparkles,
+      accentColor: 'from-rose-500 to-pink-600',
+      targetArea: 'center',
+    },
+    {
+      id: 'canvas',
+      title: t.tour.step2Title,
+      subtitle: t.tour.step2Subtitle,
+      description: t.tour.step2Desc,
+      tips: [t.tour.step2Tip1, t.tour.step2Tip2, t.tour.step2Tip3],
+      icon: Monitor,
+      accentColor: 'from-sky-500 to-cyan-500',
+      targetArea: 'canvas',
+    },
+    {
+      id: 'timeline',
+      title: t.tour.step3Title,
+      subtitle: t.tour.step3Subtitle,
+      description: t.tour.step3Desc,
+      tips: [t.tour.step3Tip1, t.tour.step3Tip2, t.tour.step3Tip3],
+      icon: Scissors,
+      accentColor: 'from-amber-500 to-orange-500',
+      targetArea: 'timeline',
+    },
+    {
+      id: 'styles',
+      title: t.tour.step4Title,
+      subtitle: t.tour.step4Subtitle,
+      description: t.tour.step4Desc,
+      tips: [t.tour.step4Tip1, t.tour.step4Tip2, t.tour.step4Tip3],
+      icon: Type,
+      accentColor: 'from-purple-500 to-pink-500',
+      targetArea: 'sidebar',
+    },
+    {
+      id: 'subtitles',
+      title: t.tour.step5Title,
+      subtitle: t.tour.step5Subtitle,
+      description: t.tour.step5Desc,
+      tips: [t.tour.step5Tip1, t.tour.step5Tip2, t.tour.step5Tip3],
+      icon: Mic,
+      accentColor: 'from-emerald-500 to-teal-500',
+      targetArea: 'sidebar',
+    },
+    {
+      id: 'audio',
+      title: t.tour.step6Title,
+      subtitle: t.tour.step6Subtitle,
+      description: t.tour.step6Desc,
+      tips: [t.tour.step6Tip1, t.tour.step6Tip2, t.tour.step6Tip3],
+      icon: Volume2,
+      accentColor: 'from-indigo-500 to-violet-500',
+      targetArea: 'sidebar',
+    },
+    {
+      id: 'export',
+      title: t.tour.step7Title,
+      subtitle: t.tour.step7Subtitle,
+      description: t.tour.step7Desc,
+      tips: [t.tour.step7Tip1, t.tour.step7Tip2, t.tour.step7Tip3],
+      icon: Download,
+      accentColor: 'from-rose-500 to-pink-600',
+      targetArea: 'header',
+    },
+  ];
+
+  const currentStep = steps[currentStepIndex] || steps[0];
   const StepIcon = currentStep.icon;
   const isFirst = currentStepIndex === 0;
-  const isLast = currentStepIndex === TOUR_STEPS.length - 1;
+  const isLast = currentStepIndex === steps.length - 1;
 
   const handleNext = () => {
     if (isLast) {
@@ -184,7 +158,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400">
-                  Paso {currentStepIndex + 1} de {TOUR_STEPS.length}
+                  {t.tour.stepOf} {currentStepIndex + 1} / {steps.length}
                 </span>
               </div>
               <h3 className="text-lg sm:text-xl font-black text-white leading-tight">
@@ -196,7 +170,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <button
             onClick={handleSkip}
             className="p-1.5 text-neutral-400 hover:text-white rounded-xl hover:bg-neutral-800 transition"
-            title="Cerrar recorrido"
+            title={t.common.close}
           >
             <X className="w-5 h-5" />
           </button>
@@ -216,7 +190,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         <div className="p-3.5 rounded-2xl bg-neutral-950/70 border border-neutral-800/80 space-y-2">
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
             <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-            <span>Consejos prácticos</span>
+            <span>{t.common.appName} Tips</span>
           </div>
           <ul className="space-y-1.5 text-xs text-neutral-300">
             {currentStep.tips.map((tip, idx) => (
@@ -232,7 +206,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         <div className="flex items-center justify-between pt-2 border-t border-neutral-800/80">
           {/* Step dots */}
           <div className="flex items-center gap-1.5">
-            {TOUR_STEPS.map((_, idx) => (
+            {steps.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentStepIndex(idx)}
@@ -241,7 +215,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                     ? 'w-6 bg-rose-500 shadow-sm shadow-rose-500'
                     : 'w-2 bg-neutral-700 hover:bg-neutral-600'
                 }`}
-                title={`Ir al paso ${idx + 1}`}
+                title={`${t.tour.stepOf} ${idx + 1}`}
               />
             ))}
           </div>
@@ -254,7 +228,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                 className="px-3 py-2 text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-xl transition flex items-center gap-1"
               >
                 <ChevronLeft className="w-4 h-4" />
-                <span>Atrás</span>
+                <span>{t.common.back}</span>
               </button>
             )}
 
@@ -262,14 +236,14 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
               onClick={handleSkip}
               className="text-xs text-neutral-400 hover:text-white px-2.5 py-2 transition"
             >
-              Saltar
+              {t.tour.skipTourButton}
             </button>
 
             <button
               onClick={handleNext}
               className="px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-rose-950/50 flex items-center gap-1.5 transition active:scale-95"
             >
-              <span>{isLast ? '¡Empezar a Crear! 🚀' : 'Próximo'}</span>
+              <span>{isLast ? t.tour.finishButton : t.common.next}</span>
               {!isLast && <ChevronRight className="w-4 h-4" />}
             </button>
           </div>
