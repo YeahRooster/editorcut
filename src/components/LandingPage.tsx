@@ -52,7 +52,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 font-sans selection:bg-rose-500 selection:text-white flex flex-col justify-between overflow-x-hidden">
+    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 font-sans selection:bg-rose-500 selection:text-white flex flex-col justify-between overflow-x-hidden overflow-y-auto">
       {/* Top Navbar */}
       <nav className="h-16 sm:h-20 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
