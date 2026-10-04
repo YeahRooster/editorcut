@@ -394,7 +394,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           {/* Add Video Button */}
           <button
             onClick={onAddVideoClick}
-            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-white rounded-lg border border-rose-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
             title="Sumar otro video al lado sin reemplazar el actual"
           >
             <Plus className="w-3.5 h-3.5 text-rose-400" />
@@ -404,10 +404,10 @@ export const Timeline: React.FC<TimelineProps> = ({
           {/* Add Sound Button */}
           <button
             onClick={onAddSoundClick}
-            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-white rounded-lg border border-emerald-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
             title="Agregar un efecto de sonido o música en la aguja"
           >
-            <Plus className="w-3.5 h-3.5 text-emerald-400" />
+            <Plus className="w-3.5 h-3.5 text-neutral-400" />
             <span>Sonido</span>
           </button>
 
@@ -415,10 +415,10 @@ export const Timeline: React.FC<TimelineProps> = ({
           {onAddTextClipClick && (
             <button
               onClick={onAddTextClipClick}
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white rounded-lg border border-purple-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
               title="Agregar un nuevo título en la aguja de reproducción"
             >
-              <Plus className="w-3.5 h-3.5 text-purple-400" />
+              <Plus className="w-3.5 h-3.5 text-neutral-400" />
               <span>Título</span>
             </button>
           )}
@@ -427,10 +427,10 @@ export const Timeline: React.FC<TimelineProps> = ({
           {onAddSubtitleClick && (
             <button
               onClick={onAddSubtitleClick}
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-white rounded-lg border border-amber-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
               title="Agregar un nuevo subtítulo en la aguja de reproducción"
             >
-              <Plus className="w-3.5 h-3.5 text-amber-400" />
+              <Plus className="w-3.5 h-3.5 text-neutral-400" />
               <span>Sub</span>
             </button>
           )}
@@ -442,7 +442,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-[11px] sm:text-xs whitespace-nowrap"
             title="Copiar elemento seleccionado (Ctrl+C)"
           >
-            <Copy className="w-3.5 h-3.5 text-sky-400" />
+            <Copy className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden sm:inline">Copiar</span>
           </button>
 
@@ -452,7 +452,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 shadow-sm text-[11px] sm:text-xs whitespace-nowrap"
             title="Pegar en la posición actual de la aguja (Ctrl+V)"
           >
-            <Clipboard className="w-3.5 h-3.5 text-emerald-400" />
+            <Clipboard className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden sm:inline">Pegar</span>
           </button>
 
@@ -463,7 +463,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-rose-950/50 text-neutral-400 hover:text-rose-400 rounded-lg border border-neutral-700 hover:border-rose-900 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-[11px] sm:text-xs whitespace-nowrap"
             title="Eliminar elemento seleccionado (Supr)"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden sm:inline">Borrar</span>
           </button>
         </div>
@@ -538,7 +538,7 @@ export const Timeline: React.FC<TimelineProps> = ({
 
         {/* TRACK 1: Video Track (Supports Multiple Consecutive Clips!) */}
         <div className="h-10 sm:h-8 bg-neutral-900/70 rounded-xl border border-neutral-800/80 relative flex items-center overflow-hidden flex-shrink-0">
-          <Film className="w-3.5 h-3.5 text-sky-400 absolute left-2 sm:left-2.5 pointer-events-none z-20" />
+          <Film className="w-3.5 h-3.5 text-neutral-400 absolute left-2 sm:left-2.5 pointer-events-none z-20" />
           
           {effectiveVideoClips.length === 0 ? (
             <span className="text-[11px] sm:text-xs text-neutral-400 ml-8 truncate">
@@ -563,8 +563,8 @@ export const Timeline: React.FC<TimelineProps> = ({
                   }}
                   className={`absolute top-0.5 bottom-0.5 rounded flex items-center px-2 z-10 transition border cursor-pointer ${
                     isSelected
-                      ? 'bg-sky-500/30 border-sky-400 ring-2 ring-sky-400 shadow-lg shadow-sky-950/80'
-                      : 'bg-neutral-800/90 border-neutral-700/80 hover:border-sky-500/50 hover:bg-neutral-800'
+                      ? 'bg-rose-500/25 border-rose-500 ring-2 ring-rose-500 shadow-lg shadow-rose-950/60'
+                      : 'bg-neutral-800/90 border-neutral-700/80 hover:border-rose-500/50 hover:bg-neutral-800'
                   }`}
                   style={{ left: `${startPct}%`, width: `${Math.max(4, widthPct)}%` }}
                 >
@@ -594,7 +594,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                         }}
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold border transition flex items-center gap-1 z-20 active:scale-95 ${
                           (clip.transitionToNext || 'none') !== 'none'
-                            ? 'bg-sky-500/40 border-sky-400 text-sky-100 shadow-sm'
+                            ? 'bg-rose-500/30 border-rose-400 text-rose-100 shadow-sm'
                             : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-white'
                         }`}
                         title="Haz clic para cambiar la transición de este corte (Corte, Crossfade, A Negro, Flash)"
@@ -617,7 +617,7 @@ export const Timeline: React.FC<TimelineProps> = ({
 
         {/* TRACK 2: Title & Text clips (Draggable, Stretchable, Animated, Behind-Person compatible) */}
         <div className="h-9 sm:h-7 bg-neutral-900/50 rounded-xl border border-neutral-800/70 relative flex items-center overflow-hidden px-2 flex-shrink-0">
-          <Type className="w-3.5 h-3.5 text-purple-400 absolute left-2 pointer-events-none z-20" />
+          <Type className="w-3.5 h-3.5 text-neutral-400 absolute left-2 pointer-events-none z-20" />
 
           {textClips.length === 0 ? (
             <div className="flex items-center ml-8 text-[11px] text-neutral-500 gap-2">
@@ -717,7 +717,7 @@ export const Timeline: React.FC<TimelineProps> = ({
 
         {/* TRACK 3: Subtitles / Speech blocks (Amber) */}
         <div className="h-9 sm:h-7 bg-neutral-900/50 rounded-xl border border-neutral-800/70 relative flex items-center overflow-hidden px-2 flex-shrink-0">
-          <Type className="w-3.5 h-3.5 text-amber-400 absolute left-2 pointer-events-none z-20" />
+          <Type className="w-3.5 h-3.5 text-neutral-400 absolute left-2 pointer-events-none z-20" />
           
           {subtitles.length === 0 ? (
             <div className="flex items-center ml-8 text-[11px] text-neutral-500 gap-2">
@@ -807,7 +807,7 @@ export const Timeline: React.FC<TimelineProps> = ({
 
         {/* TRACK 4: Audio & Sound Effects (Supports Multiple Overlapping Tracks!) */}
         <div className="h-9 sm:h-8 bg-neutral-900/60 rounded-xl border border-neutral-800/80 relative flex items-center overflow-hidden flex-shrink-0">
-          <Music className="w-3.5 h-3.5 text-emerald-400 absolute left-2 pointer-events-none z-20" />
+          <Music className="w-3.5 h-3.5 text-neutral-400 absolute left-2 pointer-events-none z-20" />
 
           {audioClips.length === 0 ? (
             <div className="flex items-center ml-8 text-[11px] text-neutral-500 gap-2">

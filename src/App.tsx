@@ -37,6 +37,39 @@ import {
 } from './utils/projectStorage';
 import { UploadCloud, Wand2, Scissors, Sliders, Monitor, PanelLeftOpen } from 'lucide-react';
 
+const loadVideoMetadata = (file: File): Promise<{ file: File; url: string; duration: number; aspectRatio: number }> => {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.src = url;
+    v.onloadedmetadata = () => {
+      const dur = v.duration && !isNaN(v.duration) && isFinite(v.duration) ? v.duration : 10;
+      const ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 9 / 16;
+      resolve({ file, url, duration: dur, aspectRatio: ar });
+    };
+    v.onerror = () => {
+      resolve({ file, url, duration: 10, aspectRatio: 9 / 16 });
+    };
+  });
+};
+
+const loadAudioMetadata = (file: File): Promise<{ file: File; url: string; duration: number }> => {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('audio');
+    a.preload = 'metadata';
+    a.src = url;
+    a.onloadedmetadata = () => {
+      const dur = a.duration && !isNaN(a.duration) && isFinite(a.duration) ? a.duration : 5;
+      resolve({ file, url, duration: dur });
+    };
+    a.onerror = () => {
+      resolve({ file, url, duration: 5 });
+    };
+  });
+};
+
 export const App: React.FC = () => {
   // 1. Aspect Ratio (9:16 for Reels/TikTok by default)
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('9:16');
@@ -185,143 +218,171 @@ export const App: React.FC = () => {
     ? videoClips.reduce((max, c) => Math.max(max, c.start + c.duration), 0)
     : (mediaAsset?.duration || 15);
 
-  // Append another video clip next to the existing one ("Sumar otro video al lado")
-  const handleAddVideoClip = useCallback((file: File) => {
-    const url = URL.createObjectURL(file);
-    const v = document.createElement('video');
-    v.src = url;
-    v.onloadedmetadata = () => {
-      const clipDur = v.duration || 10;
-      setVideoClips((prev) => {
-        const currentClips = prev.length > 0
-          ? prev
-          : (mediaAsset ? [{
-              id: mediaAsset.id,
-              name: mediaAsset.name,
-              url: mediaAsset.url,
-              duration: mediaAsset.duration,
-              start: 0,
-              file: mediaAsset.file,
-              aspectRatio: mediaAsset.aspectRatio || 9 / 16,
-            } as VideoClip] : []);
+  // Append multiple video clips sequentially in the exact selection order
+  const handleAddMultipleVideoClips = useCallback(async (files: File[]) => {
+    if (!files || files.length === 0) return;
 
-        const lastClip = currentClips[currentClips.length - 1];
-        const start = lastClip ? (lastClip.start + lastClip.duration) : 0;
-        const newClip: VideoClip = {
-          id: 'clip-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-          name: file.name,
-          url,
-          duration: clipDur,
-          start,
-          file,
-          aspectRatio: v.videoWidth / v.videoHeight || 9 / 16,
+    const metaList = await Promise.all(files.map(loadVideoMetadata));
+
+    setVideoClips((prev) => {
+      const currentClips = prev.length > 0
+        ? [...prev]
+        : (mediaAsset && mediaAsset.type === 'video' ? [{
+            id: mediaAsset.id,
+            name: mediaAsset.name,
+            url: mediaAsset.url,
+            duration: mediaAsset.duration,
+            start: 0,
+            file: mediaAsset.file,
+            aspectRatio: mediaAsset.aspectRatio || 9 / 16,
+          } as VideoClip] : []);
+
+      let nextStart = 0;
+      if (currentClips.length > 0) {
+        const last = currentClips[currentClips.length - 1];
+        nextStart = last.start + last.duration;
+      }
+
+      const newClips: VideoClip[] = [];
+      const timestamp = Date.now();
+      for (let i = 0; i < metaList.length; i++) {
+        const meta = metaList[i];
+        const clip: VideoClip = {
+          id: `clip-${timestamp}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+          name: meta.file.name,
+          url: meta.url,
+          duration: meta.duration,
+          start: nextStart,
+          file: meta.file,
+          aspectRatio: meta.aspectRatio,
         };
-        if (!mediaAsset) {
-          setMediaAsset({
-            id: newClip.id,
-            name: file.name,
-            type: 'video',
-            url,
-            duration: clipDur,
-            file,
-            aspectRatio: newClip.aspectRatio || 9 / 16,
-          });
-        }
-        return [...currentClips, newClip];
-      });
-      setToastMessage('🎬 Video sumado a la línea de tiempo junto al actual');
-      setTimeout(() => setToastMessage(null), 2500);
-    };
+        newClips.push(clip);
+        nextStart += meta.duration;
+      }
+
+      if (!mediaAsset && newClips.length > 0) {
+        const first = newClips[0];
+        setMediaAsset({
+          id: first.id,
+          name: first.name,
+          type: 'video',
+          url: first.url,
+          duration: first.duration,
+          file: first.file,
+          aspectRatio: first.aspectRatio || 9 / 16,
+        });
+      }
+
+      return [...currentClips, ...newClips];
+    });
+
+    const count = files.length;
+    setToastMessage(`🎬 ${count} video${count > 1 ? 's importados en orden' : ' importado'} a la línea de tiempo`);
+    setTimeout(() => setToastMessage(null), 2500);
   }, [mediaAsset]);
 
-  // Process incoming file (either from OS Drag & Drop or File Input)
-  const processIncomingFile = useCallback((file: File) => {
-    const url = URL.createObjectURL(file);
-    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|avi)$/i.test(file.name);
-    const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|ogg)$/i.test(file.name);
-    const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(file.name);
+  // Single video clip helper
+  const handleAddVideoClip = useCallback((file: File) => {
+    handleAddMultipleVideoClips([file]);
+  }, [handleAddMultipleVideoClips]);
 
-    if (isVideo) {
-      // If a video is already loaded, append it consecutively rather than replacing!
-      if (videoClips.length > 0 || mediaAsset?.type === 'video') {
-        handleAddVideoClip(file);
-        return;
-      }
-      const v = document.createElement('video');
-      v.src = url;
-      v.onloadedmetadata = () => {
-        const dur = v.duration || 15;
-        const newClip: VideoClip = {
-          id: 'clip-' + Date.now(),
-          name: file.name,
-          url,
-          duration: dur,
-          start: 0,
-          file,
-          aspectRatio: v.videoWidth / v.videoHeight || 9 / 16,
-        };
-        setMediaAsset({
-          id: newClip.id,
-          name: file.name,
-          type: 'video',
-          url,
-          duration: dur,
-          aspectRatio: newClip.aspectRatio || 9 / 16,
-          file,
-        });
-        setVideoClips([newClip]);
-        setCurrentTime(0);
-        setIsPlaying(false);
-      };
-    } else if (isAudio) {
-      const a = document.createElement('audio');
-      a.src = url;
-      a.onloadedmetadata = () => {
-        const dur = a.duration || 5;
-        const newAudioClip: AudioClip = {
-          id: 'audio-' + Date.now(),
-          name: file.name,
-          url,
-          start: currentTime,
-          duration: dur,
+  // Append multiple audio clips consecutively in the exact selection order
+  const handleAddMultipleAudioClips = useCallback(async (files: File[]) => {
+    if (!files || files.length === 0) return;
+    const metaList = await Promise.all(files.map(loadAudioMetadata));
+
+    setAudioClips((prev) => {
+      let nextStart = currentTime;
+      const newAudioClips: AudioClip[] = [];
+      const timestamp = Date.now();
+      for (let i = 0; i < metaList.length; i++) {
+        const meta = metaList[i];
+        const clip: AudioClip = {
+          id: `audio-${timestamp}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+          name: meta.file.name,
+          url: meta.url,
+          start: nextStart,
+          duration: meta.duration,
           volume: audioConfig.volume,
           isLoop: false,
-          file,
+          file: meta.file,
         };
-        setAudioClips((prev) => [...prev, newAudioClip]);
+        newAudioClips.push(clip);
+        nextStart += meta.duration;
+      }
+
+      if (newAudioClips.length > 0) {
+        setSelectedTimelineItem({ track: 'audio', id: newAudioClips[0].id });
         setAudioConfig((prev) => ({
           ...prev,
-          url,
-          name: file.name,
+          url: newAudioClips[0].url,
+          name: newAudioClips[0].name,
           presetTheme: 'none',
           isSyntheticLoop: false,
           isLoop: false,
           sfxType: 'none',
           isMuted: false,
         }));
-        setSelectedTimelineItem({ track: 'audio', id: newAudioClip.id });
-        setToastMessage('🎵 Sonido agregado a la línea de tiempo');
-        setTimeout(() => setToastMessage(null), 2500);
-      };
-    } else if (isImage) {
-      if (!mediaAsset && videoClips.length === 0) {
+      }
+
+      return [...prev, ...newAudioClips];
+    });
+
+    const count = files.length;
+    setToastMessage(`🎵 ${count} pista${count > 1 ? 's de audio importadas en orden' : ' agregada'} a la línea de tiempo`);
+    setTimeout(() => setToastMessage(null), 2500);
+  }, [currentTime, audioConfig.volume]);
+
+  // Process incoming files (supports multiple files from OS drag & drop or file dialog in order)
+  const processIncomingFiles = useCallback(async (files: File[]) => {
+    if (!files || files.length === 0) return;
+
+    const videoFiles: File[] = [];
+    const audioFiles: File[] = [];
+    const imageFiles: File[] = [];
+
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|avi)$/i.test(file.name);
+      const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|ogg)$/i.test(file.name);
+      const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(file.name);
+
+      if (isVideo) {
+        videoFiles.push(file);
+      } else if (isAudio) {
+        audioFiles.push(file);
+      } else if (isImage) {
+        imageFiles.push(file);
+      }
+    }
+
+    if (videoFiles.length > 0) {
+      await handleAddMultipleVideoClips(videoFiles);
+    }
+
+    if (audioFiles.length > 0) {
+      await handleAddMultipleAudioClips(audioFiles);
+    }
+
+    if (imageFiles.length > 0) {
+      const imgFile = imageFiles[0];
+      const imgUrl = URL.createObjectURL(imgFile);
+      if (!mediaAsset && videoClips.length === 0 && videoFiles.length === 0) {
         setMediaAsset({
           id: 'media-' + Date.now(),
-          name: file.name,
+          name: imgFile.name,
           type: 'image',
-          url,
+          url: imgUrl,
           duration: 15,
           aspectRatio: 9 / 16,
-          file,
+          file: imgFile,
         });
       } else {
-        // Set as watermark overlay and select it
-        setWatermarkConfig((prev) => ({ ...prev, url }));
+        setWatermarkConfig((prev) => ({ ...prev, url: imgUrl }));
         setSelectedElement('watermark');
         setSelectedTimelineItem({ track: 'watermark', id: 'watermark' });
       }
     }
-  }, [mediaAsset, videoClips.length, currentTime, audioConfig.volume, handleAddVideoClip]);
+  }, [handleAddMultipleVideoClips, handleAddMultipleAudioClips, mediaAsset, videoClips.length]);
 
   // Global OS file drag & drop handlers
   useEffect(() => {
@@ -355,7 +416,7 @@ export const App: React.FC = () => {
       setIsDraggingFileOver(false);
 
       if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-        processIncomingFile(e.dataTransfer.files[0]);
+        processIncomingFiles(Array.from(e.dataTransfer.files));
       }
     };
 
@@ -370,7 +431,7 @@ export const App: React.FC = () => {
       window.removeEventListener('dragleave', handleWindowDragLeave);
       window.removeEventListener('drop', handleWindowDrop);
     };
-  }, [processIncomingFile]);
+  }, [processIncomingFiles]);
 
   // Synchronize video element volume & mute
   useEffect(() => {
@@ -938,30 +999,6 @@ export const App: React.FC = () => {
     isVideoMuted,
     currentProjectName,
   ]);
-
-  // Add an audio clip file directly
-  const handleAddAudioClip = useCallback((file: File) => {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('audio');
-    a.src = url;
-    a.onloadedmetadata = () => {
-      const dur = a.duration || 5;
-      const newAudioClip: AudioClip = {
-        id: 'audio-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-        name: file.name,
-        url,
-        start: currentTime,
-        duration: dur,
-        volume: audioConfig.volume,
-        isLoop: false,
-        file,
-      };
-      setAudioClips((prev) => [...prev, newAudioClip]);
-      setSelectedTimelineItem({ track: 'audio', id: newAudioClip.id });
-      setToastMessage('🎵 Sonido agregado a la línea de tiempo');
-      setTimeout(() => setToastMessage(null), 2500);
-    };
-  }, [currentTime, audioConfig.volume]);
 
   // Add an animated title clip at playhead position (fresh title, no duplication)
   const handleAddTextClip = (customText?: string) => {
@@ -1794,11 +1831,12 @@ export const App: React.FC = () => {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept="video/*,image/*,audio/*"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) processIncomingFile(file);
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) processIncomingFiles(files);
           e.target.value = '';
         }}
       />
@@ -1807,11 +1845,12 @@ export const App: React.FC = () => {
       <input
         ref={videoFileInputRef}
         type="file"
+        multiple
         accept="video/*"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleAddVideoClip(file);
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) handleAddMultipleVideoClips(files);
           e.target.value = '';
         }}
       />
@@ -1820,11 +1859,12 @@ export const App: React.FC = () => {
       <input
         ref={audioFileInputRef}
         type="file"
+        multiple
         accept="audio/*"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleAddAudioClip(file);
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) handleAddMultipleAudioClips(files);
           e.target.value = '';
         }}
       />
@@ -1953,6 +1993,7 @@ export const App: React.FC = () => {
           videoClips={videoClips}
           setVideoClips={setVideoClips}
           onAddVideoClip={handleAddVideoClip}
+          onAddVideoClips={handleAddMultipleVideoClips}
           audioClips={audioClips}
           setAudioClips={setAudioClips}
           transitionConfig={transitionConfig}

@@ -22,6 +22,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { useI18n } from '../i18n/context';
+import { LogoIcon } from './LogoIcon';
 
 export const StudioMockupPreview: React.FC = () => {
   const { t } = useI18n();
@@ -46,9 +47,7 @@ export const StudioMockupPreview: React.FC = () => {
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             </div>
 
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-md shadow-rose-950/40 flex-shrink-0">
-              <Video className="w-4 h-4 text-white" />
-            </div>
+            <LogoIcon className="w-6 h-6 sm:w-7 sm:h-7 text-rose-500 drop-shadow-[0_2px_8px_rgba(225,29,72,0.4)] flex-shrink-0" />
 
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="text-xs sm:text-sm font-black tracking-tight text-white">
@@ -82,21 +81,20 @@ export const StudioMockupPreview: React.FC = () => {
           {/* Right Action Buttons */}
           <div className="flex items-center gap-1 sm:gap-1.5">
             <div className="hidden md:flex items-center gap-1 px-2.5 py-1 bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded-lg border border-neutral-700">
-              <FolderOpen className="w-3 h-3 text-amber-400" />
+              <FolderOpen className="w-3 h-3 text-neutral-400" />
               <span>Proyectos</span>
             </div>
             <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded-lg border border-neutral-700">
-              <Save className="w-3 h-3 text-rose-400" />
+              <Save className="w-3 h-3 text-neutral-400" />
               <span>Guardar</span>
             </div>
-            <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 text-amber-300 text-[10px] font-semibold rounded-lg border border-amber-500/30">
-              <Mic className="w-3 h-3 text-amber-400" />
+            <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded-lg border border-neutral-700">
+              <Mic className="w-3 h-3 text-neutral-400" />
               <span>Voz a Texto</span>
             </div>
             <div className="flex items-center gap-1 sm:gap-1.5 px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] sm:text-xs font-bold rounded-lg shadow-md shadow-rose-500/30">
               <Download className="w-3 h-3" />
               <span>Exportar</span>
-              <Sparkles className="w-3 h-3 text-amber-200 hidden sm:inline" />
             </div>
           </div>
         </div>
@@ -333,9 +331,9 @@ export const StudioMockupPreview: React.FC = () => {
               </span>
               
               {/* Video Clip 1 (Active) */}
-              <div className="w-[42%] h-full rounded bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 border border-cyan-500/50 p-1 flex items-center justify-between text-cyan-200 truncate">
+              <div className="w-[42%] h-full rounded bg-gradient-to-r from-neutral-900 via-neutral-850 to-neutral-900 border-2 border-rose-500/80 p-1 flex items-center justify-between text-rose-200 truncate shadow-sm">
                 <span className="font-bold text-[8px]">A-Roll_Creator_Scene.mp4</span>
-                <span className="text-[7px] text-cyan-400 font-mono">6.5s</span>
+                <span className="text-[7px] text-rose-400 font-mono">6.5s</span>
               </div>
 
               {/* Scissors Cut Marker */}

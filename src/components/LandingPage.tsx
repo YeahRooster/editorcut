@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import type { AspectRatio } from '../types';
 import { 
-  Video, 
   Sparkles, 
   Smartphone, 
   Monitor, 
@@ -22,6 +21,7 @@ import {
 import { useI18n } from '../i18n/context';
 import { LanguageSelector } from './LanguageSelector';
 import { StudioMockupPreview } from './StudioMockupPreview';
+import { LogoIcon } from './LogoIcon';
 
 interface LandingPageProps {
   onOpenEditor: (ratio?: AspectRatio) => void;
@@ -56,9 +56,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Top Navbar */}
       <nav className="h-16 sm:h-20 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-950/50">
-            <Video className="w-5 h-5 text-white" />
-          </div>
+          <LogoIcon className="w-9 h-9 sm:w-10 sm:h-10 text-rose-500 drop-shadow-[0_2px_12px_rgba(225,29,72,0.4)] flex-shrink-0" />
           <div>
             <div className="flex items-center gap-2">
               <span className="text-lg font-black tracking-tight text-white">{t.common.appName}</span>
@@ -79,7 +77,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             onClick={onStartTour}
             className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-900 border border-neutral-800 rounded-xl transition"
           >
-            <HelpCircle className="w-4 h-4 text-sky-400" />
+            <HelpCircle className="w-4 h-4 text-neutral-400" />
             <span>{t.landing.tutorialButton}</span>
           </button>
 
@@ -87,7 +85,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             onClick={onOpenProjects}
             className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-900 border border-neutral-800 rounded-xl transition"
           >
-            <FolderOpen className="w-4 h-4 text-amber-400" />
+            <FolderOpen className="w-4 h-4 text-neutral-400" />
             <span>{t.landing.projectsButton}</span>
           </button>
 
@@ -164,9 +162,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Horizontal 16:9 */}
                 <button
                   onClick={() => onOpenEditor('16:9')}
-                  className="p-3.5 rounded-2xl bg-neutral-900/90 hover:bg-neutral-800/90 border border-neutral-800 hover:border-sky-500/50 text-left transition group shadow-md"
+                  className="p-3.5 rounded-2xl bg-neutral-900/90 hover:bg-neutral-800/90 border border-neutral-800 hover:border-rose-500/50 text-left transition group shadow-md"
                 >
-                  <div className="w-8 h-8 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-2 group-hover:scale-110 transition">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-2 group-hover:scale-110 transition">
                     <Monitor className="w-4 h-4" />
                   </div>
                   <div className="font-bold text-white text-xs sm:text-sm">{t.landing.ratioHorizontalTitle}</div>
@@ -177,9 +175,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Square 1:1 */}
                 <button
                   onClick={() => onOpenEditor('1:1')}
-                  className="p-3.5 rounded-2xl bg-neutral-900/90 hover:bg-neutral-800/90 border border-neutral-800 hover:border-amber-500/50 text-left transition group shadow-md"
+                  className="p-3.5 rounded-2xl bg-neutral-900/90 hover:bg-neutral-800/90 border border-neutral-800 hover:border-rose-500/50 text-left transition group shadow-md"
                 >
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-2 group-hover:scale-110 transition">
                     <Square className="w-4 h-4" />
                   </div>
                   <div className="font-bold text-white text-xs sm:text-sm">{t.landing.ratioSquareTitle}</div>
@@ -222,7 +220,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Card 2 */}
             <div className="p-6 rounded-3xl bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 transition space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-pink-500/15 border border-pink-500/30 text-pink-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
                 <Sparkles className="w-5 h-5" />
               </div>
               <h4 className="text-base font-bold text-white">{t.landing.feat2Title}</h4>
@@ -233,7 +231,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Card 3 */}
             <div className="p-6 rounded-3xl bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 transition space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
                 <Mic className="w-5 h-5" />
               </div>
               <h4 className="text-base font-bold text-white">{t.landing.feat3Title}</h4>
@@ -244,7 +242,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Card 4 */}
             <div className="p-6 rounded-3xl bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 transition space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
                 <Type className="w-5 h-5" />
               </div>
               <h4 className="text-base font-bold text-white">{t.landing.feat4Title}</h4>
@@ -255,7 +253,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Card 5 */}
             <div className="p-6 rounded-3xl bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 transition space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
                 <Volume2 className="w-5 h-5" />
               </div>
               <h4 className="text-base font-bold text-white">{t.landing.feat5Title}</h4>
@@ -266,7 +264,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Card 6 */}
             <div className="p-6 rounded-3xl bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 transition space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
                 <Download className="w-5 h-5" />
               </div>
               <h4 className="text-base font-bold text-white">{t.landing.feat6Title}</h4>
@@ -291,7 +289,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/80 space-y-2">
-              <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 text-xs font-black flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black flex items-center justify-center">
                 {t.landing.step1Num}
               </div>
               <h5 className="font-bold text-sm text-white">{t.landing.step1Title}</h5>
@@ -301,7 +299,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/80 space-y-2">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 text-xs font-black flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black flex items-center justify-center">
                 {t.landing.step2Num}
               </div>
               <h5 className="font-bold text-sm text-white">{t.landing.step2Title}</h5>
@@ -311,7 +309,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/80 space-y-2">
-              <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 text-xs font-black flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black flex items-center justify-center">
                 {t.landing.step3Num}
               </div>
               <h5 className="font-bold text-sm text-white">{t.landing.step3Title}</h5>
@@ -321,7 +319,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/80 space-y-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-black flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black flex items-center justify-center">
                 {t.landing.step4Num}
               </div>
               <h5 className="font-bold text-sm text-white">{t.landing.step4Title}</h5>
@@ -331,7 +329,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/80 space-y-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-black flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black flex items-center justify-center">
                 {t.landing.step5Num}
               </div>
               <h5 className="font-bold text-sm text-white">{t.landing.step5Title}</h5>
@@ -354,7 +352,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* Local & Private Badge Bar */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-neutral-800/60">
           <div className="flex items-center gap-3 p-4 rounded-2xl bg-neutral-900/30 border border-neutral-800/50">
-            <ShieldCheck className="w-6 h-6 text-emerald-400 flex-shrink-0" />
+            <ShieldCheck className="w-6 h-6 text-rose-500 flex-shrink-0" />
             <div>
               <div className="text-xs font-bold text-white">{t.landing.whyPill1Title}</div>
               <div className="text-[11px] text-neutral-400">{t.landing.whyPill1Desc}</div>
@@ -362,7 +360,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="flex items-center gap-3 p-4 rounded-2xl bg-neutral-900/30 border border-neutral-800/50">
-            <Cpu className="w-6 h-6 text-sky-400 flex-shrink-0" />
+            <Cpu className="w-6 h-6 text-rose-500 flex-shrink-0" />
             <div>
               <div className="text-xs font-bold text-white">{t.landing.whyPill2Title}</div>
               <div className="text-[11px] text-neutral-400">{t.landing.whyPill2Desc}</div>
@@ -370,7 +368,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="flex items-center gap-3 p-4 rounded-2xl bg-neutral-900/30 border border-neutral-800/50">
-            <Zap className="w-6 h-6 text-amber-400 flex-shrink-0" />
+            <Zap className="w-6 h-6 text-rose-500 flex-shrink-0" />
             <div>
               <div className="text-xs font-bold text-white">{t.landing.whyPill3Title}</div>
               <div className="text-[11px] text-neutral-400">{t.landing.whyPill3Desc}</div>
@@ -381,10 +379,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Footer with Skip Landing Toggle */}
       <footer className="border-t border-neutral-800/80 bg-neutral-950 px-4 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-400">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-rose-600 flex items-center justify-center text-white font-black text-xs">
-            E
-          </div>
+        <div className="flex items-center gap-2.5">
+          <LogoIcon className="w-6 h-6 text-rose-500 flex-shrink-0" withContainer={false} />
           <span>{t.landing.footerBrandText}</span>
         </div>
 

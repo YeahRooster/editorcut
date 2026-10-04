@@ -1,7 +1,6 @@
 import React from 'react';
 import type { AspectRatio } from '../types';
 import { 
-  Sparkles, 
   Smartphone, 
   Square, 
   Monitor, 
@@ -10,12 +9,12 @@ import {
   Save,
   Upload,
   Mic,
-  Video,
   HelpCircle,
   Home
 } from 'lucide-react';
 import { useI18n } from '../i18n/context';
 import { LanguageSelector } from './LanguageSelector';
+import { LogoIcon } from './LogoIcon';
 
 interface HeaderProps {
   aspectRatio: AspectRatio;
@@ -54,9 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
         className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0 cursor-pointer hover:opacity-90 transition group"
         title={t.header.home}
       >
-        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-950/40 flex-shrink-0 group-hover:scale-105 transition">
-          <Video className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-        </div>
+        <LogoIcon className="w-8 h-8 sm:w-9 sm:h-9 text-rose-500 drop-shadow-[0_2px_10px_rgba(225,29,72,0.4)] flex-shrink-0 group-hover:scale-105 transition" />
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <h1 className="text-sm sm:text-lg font-black tracking-tight text-white m-0 truncate group-hover:text-rose-300 transition">
@@ -144,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3 sm:py-2 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700/70 transition"
             title={t.header.tutorial}
           >
-            <HelpCircle className="w-3.5 h-3.5 text-sky-400" />
+            <HelpCircle className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden lg:inline">{t.header.tutorial}</span>
           </button>
         )}
@@ -155,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3 sm:py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"
             title={t.header.projects}
           >
-            <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+            <FolderOpen className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden md:inline">{t.header.projects}</span>
           </button>
         )}
@@ -166,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3 sm:py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"
             title={t.header.quickSave}
           >
-            <Save className="w-3.5 h-3.5 text-rose-400" />
+            <Save className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden lg:inline">{t.header.quickSave}</span>
           </button>
         )}
@@ -176,16 +173,16 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3.5 sm:py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"
           title={t.header.importMedia}
         >
-          <Upload className="w-3.5 h-3.5 text-neutral-300" />
+          <Upload className="w-3.5 h-3.5 text-neutral-400" />
           <span className="hidden xl:inline">{t.header.importMedia}</span>
         </button>
 
         <button
           onClick={onAutoSubtitlesClick}
-          className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3.5 sm:py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold rounded-xl border border-amber-500/30 transition shadow-sm"
+          className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3.5 sm:py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 transition"
           title={t.header.aiSubtitles}
         >
-          <Mic className="w-3.5 h-3.5 text-amber-400" />
+          <Mic className="w-3.5 h-3.5 text-neutral-400" />
           <span className="hidden xl:inline">{t.header.aiSubtitles}</span>
         </button>
 
@@ -196,7 +193,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>{isExporting ? t.common.loading : t.header.exportVideo}</span>
-          <Sparkles className="w-3.5 h-3.5 text-amber-200 hidden md:inline" />
         </button>
       </div>
     </header>

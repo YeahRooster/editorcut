@@ -68,6 +68,7 @@ interface LeftSidebarProps {
   videoClips: VideoClip[];
   setVideoClips: React.Dispatch<React.SetStateAction<VideoClip[]>>;
   onAddVideoClip: (file: File) => void;
+  onAddVideoClips?: (files: File[]) => void;
   audioClips: AudioClip[];
   setAudioClips: React.Dispatch<React.SetStateAction<AudioClip[]>>;
   transitionConfig: TransitionConfig;
@@ -104,6 +105,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   videoClips,
   setVideoClips,
   onAddVideoClip,
+  onAddVideoClips,
   audioClips,
   setAudioClips,
   transitionConfig,
@@ -151,17 +153,28 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   };
 
 
-  // File upload handler for media (automatically appends if a video already exists)
+  // File upload handler for media (supports selecting multiple files in order)
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
+    if (files.length > 1 && onAddVideoClips) {
+      onAddVideoClips(files);
+      e.target.value = '';
+      return;
+    }
+
+    const file = files[0];
     const url = URL.createObjectURL(file);
     const isVideo = file.type.startsWith('video');
 
     if (isVideo) {
       if (videoClips.length > 0 || mediaAsset?.type === 'video') {
-        onAddVideoClip(file);
+        if (onAddVideoClips) {
+          onAddVideoClips([file]);
+        } else {
+          onAddVideoClip(file);
+        }
         e.target.value = '';
         return;
       }
@@ -665,6 +678,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   <input
                     type="file"
                     accept="video/*,image/*"
+                    multiple
                     onChange={handleMediaUpload}
                     className="hidden"
                   />
@@ -672,22 +686,29 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               ) : (
                 <div className="space-y-2.5">
                   {/* Botón destacado: Sumar otro video al lado */}
-                  <label className="border-2 border-dashed border-sky-500/60 hover:border-sky-400 bg-sky-500/10 hover:bg-sky-500/20 rounded-2xl p-3.5 flex items-center justify-center gap-2 cursor-pointer transition group shadow-md shadow-sky-950/20">
-                    <Plus className="w-4 h-4 text-sky-400 group-hover:scale-110 transition flex-shrink-0" />
+                  <label className="border-2 border-dashed border-rose-500/40 hover:border-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-2xl p-3.5 flex items-center justify-center gap-2 cursor-pointer transition group shadow-md shadow-rose-950/20">
+                    <Plus className="w-4 h-4 text-rose-400 group-hover:scale-110 transition flex-shrink-0" />
                     <div className="text-left">
-                      <span className="text-xs font-bold text-sky-200 group-hover:text-white block">
+                      <span className="text-xs font-bold text-rose-200 group-hover:text-white block">
                         + Sumar otro video al lado (secuencia)
                       </span>
-                      <span className="text-[10px] text-sky-400/80 block">
-                        Se añade al final sin borrar el que ya tienes
+                      <span className="text-[10px] text-rose-400/80 block">
+                        Permite elegir uno o varios videos en orden
                       </span>
                     </div>
                     <input
                       type="file"
                       accept="video/*,image/*"
+                      multiple
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) onAddVideoClip(file);
+                        const files = Array.from(e.target.files || []);
+                        if (files.length > 0) {
+                          if (onAddVideoClips) {
+                            onAddVideoClips(files);
+                          } else {
+                            files.forEach((f) => onAddVideoClip(f));
+                          }
+                        }
                         e.target.value = '';
                       }}
                       className="hidden"
@@ -714,7 +735,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <div className="pt-2 border-t border-neutral-800 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-neutral-200 flex items-center gap-1.5">
-                    <Film className="w-3.5 h-3.5 text-sky-400" />
+                    <Film className="w-3.5 h-3.5 text-neutral-400" />
                     <span>Videos en la Historia ({videoClips.length || (mediaAsset ? 1 : 0)})</span>
                   </h3>
                   <span className="text-[10px] text-neutral-500">Consecutivos</span>
@@ -731,15 +752,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         onClick={() => onSelectItem({ track: 'video', id: clip.id })}
                         className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer transition ${
                           isSelected
-                            ? 'border-sky-400 bg-sky-500/20 text-white ring-1 ring-sky-400'
+                            ? 'border-rose-500 bg-rose-500/20 text-white ring-1 ring-rose-500'
                             : 'border-neutral-800 bg-neutral-950/60 text-neutral-300 hover:bg-neutral-900'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate pr-2">
-                          <span className="w-5 h-5 rounded-full bg-neutral-800 text-[10px] font-bold flex items-center justify-center text-sky-400 flex-shrink-0">
+                          <span className="w-5 h-5 rounded-full bg-neutral-800 text-[10px] font-bold flex items-center justify-center text-rose-400 flex-shrink-0">
                             {index + 1}
                           </span>
-                          <Film className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                          <Film className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
                           <div className="truncate">
                             <div className="text-xs font-bold truncate">{clip.name}</div>
                             <div className="text-[10px] text-neutral-400">
@@ -864,7 +885,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 {videoClips && videoClips.length > 1 && (
                   <div className="pt-2 border-t border-neutral-800/80 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-sky-400">
+                      <span className="text-[11px] font-bold text-rose-400">
                         ✂️ Personalizar cada corte individual:
                       </span>
                       <span className="text-[10px] text-neutral-400">
@@ -889,7 +910,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               <span className="font-bold text-neutral-200">
                                 Corte #{i + 1}
                               </span>
-                              <span className="text-[10px] text-sky-400/90 font-mono">
+                              <span className="text-[10px] text-rose-400/90 font-mono">
                                 en {Math.round(nextClip.start)}s
                               </span>
                             </div>
@@ -919,7 +940,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     }}
                                     className={`py-1 px-1 rounded-lg text-[10px] font-semibold border transition text-center ${
                                       isSelected
-                                        ? 'bg-sky-500/25 border-sky-400 text-sky-200 font-bold shadow-sm'
+                                        ? 'bg-rose-500/25 border-rose-400 text-rose-200 font-bold shadow-sm'
                                         : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
                                     }`}
                                   >
@@ -1182,7 +1203,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       : 'border-neutral-800 bg-neutral-950/60 text-neutral-400 hover:border-neutral-700'
                   }`}
                 >
-                  <Type className="w-5 h-5 text-blue-400 mb-2" />
+                  <Type className="w-5 h-5 text-neutral-400 mb-2" />
                   <div>
                     <div className="text-xs font-bold text-white">Subtítulo Clásico</div>
                     <div className="text-[10px] text-neutral-400">Limpio y elegante</div>
@@ -2489,7 +2510,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-neutral-800 flex items-center justify-center text-neutral-300">
-                    <Film className="w-4 h-4 text-sky-400" />
+                    <Film className="w-4 h-4 text-neutral-400" />
                   </div>
                   <div>
                     <div className="text-xs font-bold text-neutral-200">Video Original</div>
@@ -2497,7 +2518,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono font-bold text-sky-400">
+                  <span className="text-xs font-mono font-bold text-rose-400">
                     {isVideoMuted ? '0%' : `${Math.round(videoVolume * 100)}%`}
                   </span>
                   <button
@@ -2526,7 +2547,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   setVideoVolume(val);
                   if (isVideoMuted && val > 0) setIsVideoMuted(false);
                 }}
-                className="w-full h-1.5 bg-neutral-800 rounded-lg cursor-pointer accent-sky-400"
+                className="w-full h-1.5 bg-neutral-800 rounded-lg cursor-pointer accent-rose-500"
               />
 
               <div className="flex items-center justify-between text-[10px] text-neutral-500">
