@@ -179,7 +179,7 @@ export const StudioMockupPreview: React.FC = () => {
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-neutral-400">Frase Principal (Título)</span>
                 <div className="px-2 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-[10px] font-black text-rose-400 tracking-wider">
-                  CREATOR MINDSET
+                  CINEMATIC LOOK
                 </div>
               </div>
 
@@ -187,7 +187,7 @@ export const StudioMockupPreview: React.FC = () => {
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-neutral-400">Lema / Subtítulo</span>
                 <div className="px-2 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-[9px] text-neutral-300 truncate">
-                  Domina tu nicho con edición IA
+                  Grabación profesional 4K
                 </div>
               </div>
 
@@ -204,56 +204,39 @@ export const StudioMockupPreview: React.FC = () => {
           <div className="col-span-7 sm:col-span-8 lg:col-span-8 flex flex-col justify-between items-center bg-neutral-950 p-2 sm:p-3 relative overflow-hidden">
             
             {/* The 9:16 Smartphone Video Preview Canvas */}
-            <div className="relative w-40 sm:w-48 md:w-56 aspect-[9/16] rounded-2xl border-2 border-neutral-800 bg-neutral-950 shadow-2xl shadow-black overflow-hidden flex flex-col justify-between items-center">
+            <div className="relative w-40 sm:w-48 md:w-56 aspect-[9/16] rounded-2xl border-2 border-neutral-800 bg-neutral-950 shadow-2xl shadow-black overflow-hidden flex flex-col justify-between items-center group">
               
-              {/* Background Video Layer: High Quality Cinematic Studio Creator */}
-              <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-neutral-900 to-black overflow-hidden">
-                {/* Neon Backlight Tubes */}
-                <div className="absolute -top-10 left-3 w-1 bottom-0 bg-cyan-400/90 shadow-[0_0_20px_#22d3ee]" />
-                <div className="absolute -top-10 right-4 w-1 bottom-0 bg-rose-500/90 shadow-[0_0_20px_#f43f5e]" />
-                
-                {/* Subtle Studio Glow */}
-                <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl" />
+              {/* Cinematic Video Footage (Master Session Camera Operator) */}
+              <img
+                src="/cinematic-cameraman.jpg"
+                alt="Cinematic Camera Session"
+                className="absolute inset-0 w-full h-full object-cover object-center scale-105 group-hover:scale-100 transition-transform duration-700"
+              />
+
+              {/* Cinematic Vignette / Gradients */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/50 pointer-events-none" />
+
+              {/* Top Status Bar: REC 4K + Timecode */}
+              <div className="relative z-10 w-full pt-2.5 px-2.5 flex items-center justify-between text-[8px] font-mono text-white/90">
+                <span className="flex items-center gap-1 bg-rose-600/90 text-white font-bold px-1.5 py-0.5 rounded shadow">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> REC 4K
+                </span>
+                <span className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded border border-white/10 text-neutral-300">
+                  00:04:12
+                </span>
               </div>
 
-              {/* TEXT BEHIND PERSON LAYER (Our Star Feature!) */}
-              <div className="absolute top-12 z-10 w-full text-center pointer-events-none select-none">
-                <div className="font-black text-2xl sm:text-3xl text-white tracking-widest leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] font-sans">
-                  CREATOR
+              {/* Center / Lower Overlay: Cinematic Title & Dynamic Subtitles */}
+              <div className="relative z-10 w-full pb-3 px-2 flex flex-col items-center gap-1.5 pointer-events-none">
+                <div className="text-center">
+                  <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md border border-rose-500/40 text-[9px] font-black tracking-wider text-rose-400">
+                    CINEMATIC LOOK
+                  </span>
                 </div>
-                <div className="font-black text-2xl sm:text-3xl bg-gradient-to-r from-rose-400 to-pink-300 bg-clip-text text-transparent tracking-widest leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] font-sans">
-                  MINDSET
-                </div>
-              </div>
-
-              {/* Foreground Subject (Person Layer cutting over the text) */}
-              <div className="absolute inset-x-0 bottom-0 top-16 z-20 flex items-end justify-center pointer-events-none">
-                <svg className="w-36 sm:w-44 h-auto drop-shadow-[0_15px_25px_rgba(0,0,0,0.9)]" viewBox="0 0 160 170" fill="none">
-                  {/* Person Head, Hair & Shoulders Silhouette with studio lighting */}
-                  <path d="M45 170 C45 130 55 105 70 95 C65 91 60 83 60 72 C60 56 70 44 85 44 C100 44 110 56 110 72 C110 83 105 91 100 95 C115 105 125 130 125 170 Z" fill="#0f172a" />
-                  
-                  {/* Trendy Creator Studio Headset */}
-                  <path d="M60 62 C60 48 70 38 85 38 C100 38 110 48 110 62" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-                  <rect x="55" y="60" width="10" height="18" rx="4" fill="#0284c7" />
-                  <rect x="105" y="60" width="10" height="18" rx="4" fill="#0284c7" />
-
-                  {/* High-Contrast Neon Rim Light Edges */}
-                  <path d="M48 170 C48 135 57 112 70 98" stroke="#22d3ee" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M122 170 C122 135 113 112 100 98" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" />
-
-                  {/* Studio Microphone in front */}
-                  <rect x="78" y="115" width="14" height="28" rx="7" fill="#1e293b" stroke="#e2e8f0" strokeWidth="1.5" />
-                  <line x1="85" y1="143" x2="85" y2="165" stroke="#64748b" strokeWidth="2.5" />
-                  <circle cx="85" cy="125" r="2.5" fill="#f43f5e" />
-                </svg>
-              </div>
-
-              {/* Dynamic Karaoke Subtitle (Foreground Layer over person) */}
-              <div className="absolute bottom-3 left-2 right-2 z-30 flex justify-center">
-                <div className="px-2.5 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-neutral-700/80 text-[9px] sm:text-[10px] text-white font-bold shadow-2xl text-center">
-                  <span>⚡ El secreto para </span>
-                  <span className="text-amber-300 bg-amber-500/30 px-1 py-0.5 rounded border border-amber-400/50">crecer en redes</span>
-                  <span> este año</span>
+                {/* Dynamic Subtitle */}
+                <div className="w-full px-2 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-neutral-700/80 text-[8px] sm:text-[9px] text-white font-bold shadow-2xl text-center">
+                  <span>⚡ Grabación profesional </span>
+                  <span className="text-amber-300 bg-amber-500/30 px-1 py-0.5 rounded border border-amber-400/50">4K DCI</span>
                 </div>
               </div>
             </div>
@@ -332,7 +315,7 @@ export const StudioMockupPreview: React.FC = () => {
               
               {/* Video Clip 1 (Active) */}
               <div className="w-[42%] h-full rounded bg-gradient-to-r from-neutral-900 via-neutral-850 to-neutral-900 border-2 border-rose-500/80 p-1 flex items-center justify-between text-rose-200 truncate shadow-sm">
-                <span className="font-bold text-[8px]">A-Roll_Creator_Scene.mp4</span>
+                <span className="font-bold text-[8px]">Cinematic_Film_Session.mp4</span>
                 <span className="text-[7px] text-rose-400 font-mono">6.5s</span>
               </div>
 
@@ -354,7 +337,7 @@ export const StudioMockupPreview: React.FC = () => {
                 ✏️ Títulos
               </span>
               <div className="ml-[2%] w-[45%] h-full rounded bg-purple-500/30 border border-purple-400/60 text-purple-200 px-1.5 flex items-center justify-between truncate shadow-sm">
-                <span className="font-bold">CREATOR MINDSET (Detrás de Persona)</span>
+                <span className="font-bold">CINEMATIC LOOK (Grading & FX)</span>
                 <span className="text-[7px] text-purple-300">0.5s - 7.0s</span>
               </div>
             </div>
@@ -365,10 +348,10 @@ export const StudioMockupPreview: React.FC = () => {
                 💬 Subtítulos
               </span>
               <div className="ml-[4%] w-[26%] h-full rounded bg-amber-500/25 border border-amber-400/50 text-amber-200 px-1 flex items-center truncate">
-                "El secreto para crecer..."
+                "Grabación profesional..."
               </div>
               <div className="ml-[2%] w-[32%] h-full rounded bg-amber-500/25 border border-amber-400/50 text-amber-200 px-1 flex items-center truncate">
-                "es mantener la constancia..."
+                "en resolución 4K DCI..."
               </div>
             </div>
 
