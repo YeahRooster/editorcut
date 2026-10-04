@@ -31,7 +31,7 @@ import {
   urlToBlob,
   type SavedProject,
 } from './utils/projectStorage';
-import { UploadCloud, Wand2 } from 'lucide-react';
+import { UploadCloud, Wand2, Scissors, Sliders, Monitor, PanelLeftOpen } from 'lucide-react';
 
 export const App: React.FC = () => {
   // 1. Aspect Ratio (9:16 for Reels/TikTok by default)
@@ -148,6 +148,10 @@ export const App: React.FC = () => {
   const [isSavingProject, setIsSavingProject] = useState<boolean>(false);
   const [autoSaveAvailable, setAutoSaveAvailable] = useState<SavedProject | null>(null);
   const [hasPromptedAutoSave, setHasPromptedAutoSave] = useState<boolean>(false);
+
+  // 15. Responsive Mobile & Tablet Layout State
+  const [mobileTab, setMobileTab] = useState<'timeline' | 'tools' | 'canvas'>('timeline');
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
   // Canvas & Video element refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1850,9 +1854,34 @@ export const App: React.FC = () => {
       )}
 
       {/* Main Workspace (Sidebar + Canvas) */}
-      <div className="flex-1 flex overflow-hidden">
+      <div
+        className={`flex-1 flex flex-col lg:flex-row overflow-hidden relative ${
+          mobileTab === 'timeline'
+            ? 'flex-none h-[38vh] sm:h-[44vh] lg:flex-1 lg:h-auto'
+            : 'flex-1'
+        }`}
+      >
+        {/* Toggle to reopen LeftSidebar on desktop when collapsed */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="hidden lg:flex absolute top-4 left-4 z-30 items-center gap-1.5 px-3 py-1.5 bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700/80 rounded-xl text-xs font-semibold text-neutral-300 shadow-xl transition-all"
+            title="Mostrar panel de herramientas"
+          >
+            <PanelLeftOpen className="w-4 h-4 text-rose-400" />
+            <span>Mostrar Panel</span>
+          </button>
+        )}
+
         {/* Left Control Drawer */}
         <LeftSidebar
+          className={`
+            ${mobileTab === 'tools' ? 'flex flex-1 w-full order-2 lg:order-1' : 'hidden'}
+            ${isSidebarOpen ? 'lg:flex lg:w-80 xl:w-96 lg:order-1' : 'lg:hidden'}
+            border-t lg:border-t-0 lg:border-r border-neutral-800 h-full overflow-hidden
+          `}
+          onToggleCollapse={() => setIsSidebarOpen(false)}
+          isCollapsed={!isSidebarOpen}
           mediaAsset={mediaAsset}
           setMediaAsset={setMediaAsset}
           textConfig={textConfig}
@@ -1889,6 +1918,12 @@ export const App: React.FC = () => {
 
         {/* Center Live Stage Canvas */}
         <PreviewCanvas
+          className={`
+            ${mobileTab === 'tools' ? 'h-[34vh] sm:h-[38vh] flex-none w-full order-1 lg:order-2' : ''}
+            ${mobileTab === 'timeline' ? 'flex-1 w-full h-full lg:order-2' : ''}
+            ${mobileTab === 'canvas' ? 'flex-1 w-full h-full lg:order-2' : ''}
+            lg:flex-1 lg:h-full
+          `}
           aspectRatio={aspectRatio}
           mediaAsset={mediaAsset}
           videoClips={videoClips}
@@ -1922,6 +1957,11 @@ export const App: React.FC = () => {
 
       {/* Bottom Timeline with Drag & Drop tracks and Scissors */}
       <Timeline
+        className={`
+          ${mobileTab === 'timeline' ? 'flex-1 min-h-0 w-full' : 'hidden'}
+          lg:flex lg:flex-none lg:h-56 xl:lg:h-64
+          border-t border-neutral-800 bg-neutral-950 flex-col select-none z-20 shadow-2xl flex-shrink-0
+        `}
         mediaAsset={mediaAsset}
         videoClips={videoClips}
         setVideoClips={setVideoClips}
@@ -1950,6 +1990,45 @@ export const App: React.FC = () => {
         videoVolume={videoVolume}
         isVideoMuted={isVideoMuted}
       />
+
+      {/* Mobile & Tablet Bottom Switcher Bar (< lg) */}
+      <nav className="lg:hidden flex items-center justify-around bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800/90 px-3 py-1.5 z-30 shrink-0">
+        <button
+          onClick={() => setMobileTab('timeline')}
+          className={`flex-1 flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition font-semibold text-[11px] ${
+            mobileTab === 'timeline'
+              ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Scissors className="w-4 h-4" />
+          <span>Línea de Tiempo</span>
+        </button>
+
+        <button
+          onClick={() => setMobileTab('tools')}
+          className={`flex-1 flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition font-semibold text-[11px] ${
+            mobileTab === 'tools'
+              ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Herramientas</span>
+        </button>
+
+        <button
+          onClick={() => setMobileTab('canvas')}
+          className={`flex-1 flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition font-semibold text-[11px] ${
+            mobileTab === 'canvas'
+              ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Monitor className="w-4 h-4" />
+          <span>Solo Lienzo</span>
+        </button>
+      </nav>
 
       {/* Export Progress & Download Modal */}
       <ExportModal

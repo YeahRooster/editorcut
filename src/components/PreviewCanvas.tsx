@@ -51,6 +51,7 @@ interface PreviewCanvasProps {
   isExporting?: boolean;
   selectedElement?: 'none' | 'watermark' | 'title' | 'subtitle';
   setSelectedElement?: (el: 'none' | 'watermark' | 'title' | 'subtitle') => void;
+  className?: string;
 }
 
 export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
@@ -82,6 +83,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   isExporting = false,
   selectedElement = 'none',
   setSelectedElement,
+  className,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const watermarkImgRef = useRef<HTMLImageElement | null>(null);
@@ -1581,7 +1583,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-neutral-950 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none"
+      className={`flex flex-col items-center justify-center p-2 sm:p-4 relative overflow-hidden select-none bg-neutral-950 ${className || 'flex-1'}`}
     >
       {/* Hidden Video Player Elements for Frame Decoding across all clips */}
       {videoClips && videoClips.length > 0 ? (
@@ -1630,14 +1632,14 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       )}
 
       {/* Center Canvas Viewport */}
-      <div className="relative group max-h-[72vh] flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900/50">
+      <div className="flex-1 min-h-0 relative group flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900/50 max-w-full">
         <canvas
           ref={canvasRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onDoubleClick={handleDoubleClick}
-          className={`max-h-[72vh] max-w-full ${displayAspect} object-contain ${getCursorClass()} transition-all`}
+          className={`max-h-full max-w-full ${displayAspect} object-contain ${getCursorClass()} transition-all`}
         />
 
         {/* INLINE SUBTITLE EDIT MODAL (ON DOUBLE-CLICK) */}
@@ -1818,40 +1820,40 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       </div>
 
       {/* Floating Player Controls Bar */}
-      <div className="mt-4 flex items-center gap-3 bg-neutral-900/90 backdrop-blur-md border border-neutral-800 px-5 py-2.5 rounded-2xl shadow-xl z-20">
+      <div className="mt-1.5 sm:mt-3 flex items-center gap-1.5 sm:gap-3 bg-neutral-900/90 backdrop-blur-md border border-neutral-800 px-2.5 sm:px-5 py-1 sm:py-2.5 rounded-xl sm:rounded-2xl shadow-xl z-20 max-w-full overflow-x-auto no-scrollbar flex-shrink-0">
         {/* Reset button */}
         <button
           onClick={() => handleSeekInternal(0)}
-          className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition"
+          className="p-1.5 sm:p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg sm:rounded-xl transition flex-shrink-0"
           title="Volver al inicio"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
 
         {/* Big Friendly Play / Pause Button */}
         <button
           onClick={onTogglePlay}
-          className="w-12 h-12 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-950/40 transition transform active:scale-95"
+          className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-rose-950/40 transition transform active:scale-95 flex-shrink-0"
           title={isPlaying ? 'Pausar' : 'Reproducir'}
         >
-          {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+          {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />}
         </button>
 
         {/* Audio Mute Toggle */}
         <button
           onClick={onToggleMute}
-          className={`p-2 rounded-xl transition ${
+          className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl transition flex-shrink-0 ${
             isMuted
               ? 'text-rose-400 bg-rose-500/10'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
           }`}
           title={isMuted ? 'Desmutear' : 'Mutear'}
         >
-          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
         </button>
 
         {/* Time counter */}
-        <div className="text-xs font-mono font-semibold text-neutral-300 min-w-[90px] text-center">
+        <div className="text-[11px] sm:text-xs font-mono font-semibold text-neutral-300 min-w-[75px] sm:min-w-[90px] text-center whitespace-nowrap">
           {formatTime(currentTime)} / {formatTime(duration)}
         </div>
 
@@ -1863,7 +1865,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           step={0.05}
           value={currentTime}
           onChange={(e) => handleSeekInternal(parseFloat(e.target.value))}
-          className="w-40 sm:w-64 h-1.5 bg-neutral-800 rounded-lg cursor-pointer appearance-none"
+          className="w-16 xs:w-24 sm:w-40 md:w-64 h-1 sm:h-1.5 bg-neutral-800 rounded-lg cursor-pointer appearance-none"
         />
       </div>
     </div>

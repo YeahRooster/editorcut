@@ -34,13 +34,17 @@ import {
   Bell,
   Flame,
   Repeat,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft
 } from 'lucide-react';
 import { musicPlayer, createSFXBuffer, audioBufferToWavBlob, type SFXPreset } from '../utils/audioSynth';
 import { speechService } from '../utils/speechRecognition';
 import { selfieSegmenter } from '../utils/segmentation';
 
 interface LeftSidebarProps {
+  className?: string;
+  onToggleCollapse?: () => void;
+  isCollapsed?: boolean;
   mediaAsset: MediaAsset | null;
   setMediaAsset: (asset: MediaAsset) => void;
   textConfig: TextOverlayConfig;
@@ -109,6 +113,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   textClips = [],
   setTextClips,
   onAddTextClip,
+  className,
+  onToggleCollapse,
+  isCollapsed: _isCollapsed,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('text');
   const [isMicListening, setIsMicListening] = useState(false);
@@ -557,72 +564,82 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   };
 
   return (
-    <aside className="w-80 sm:w-96 border-r border-neutral-800 bg-neutral-900/95 flex flex-col h-[calc(100vh-4rem)] z-20 select-none">
+    <aside className={`flex flex-col select-none bg-neutral-900/95 z-20 overflow-hidden ${className || 'w-full lg:w-80 xl:w-96 border-r border-neutral-800 h-full'}`}>
       {/* Tab Navigation */}
-      <div className="flex border-b border-neutral-800 bg-neutral-950/60 p-1.5 gap-1">
+      <div className="flex items-center border-b border-neutral-800 bg-neutral-950/60 p-1 sm:p-1.5 gap-1 overflow-x-auto no-scrollbar flex-nowrap flex-shrink-0">
         <button
           onClick={() => setActiveTab('media')}
-          className={`flex-1 flex flex-col items-center py-2 px-1 rounded-xl text-xs font-medium transition ${
+          className={`flex-1 min-w-[56px] sm:min-w-0 flex flex-col items-center py-1.5 sm:py-2 px-1 rounded-xl text-[10px] sm:text-xs font-medium transition ${
             activeTab === 'media'
               ? 'bg-neutral-800 text-rose-400 font-bold shadow'
               : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
           }`}
         >
-          <Film className="w-4 h-4 mb-1" />
+          <Film className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
           <span>Medios</span>
         </button>
 
         <button
           onClick={() => setActiveTab('text')}
-          className={`flex-1 flex flex-col items-center py-2 px-1 rounded-xl text-xs font-medium transition ${
+          className={`flex-1 min-w-[56px] sm:min-w-0 flex flex-col items-center py-1.5 sm:py-2 px-1 rounded-xl text-[10px] sm:text-xs font-medium transition ${
             activeTab === 'text'
               ? 'bg-neutral-800 text-rose-400 font-bold shadow'
               : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
           }`}
         >
-          <Type className="w-4 h-4 mb-1" />
+          <Type className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
           <span>Estilos</span>
         </button>
 
         <button
           onClick={() => setActiveTab('subtitles')}
-          className={`flex-1 flex flex-col items-center py-2 px-1 rounded-xl text-xs font-medium transition ${
+          className={`flex-1 min-w-[56px] sm:min-w-0 flex flex-col items-center py-1.5 sm:py-2 px-1 rounded-xl text-[10px] sm:text-xs font-medium transition ${
             activeTab === 'subtitles'
               ? 'bg-neutral-800 text-rose-400 font-bold shadow'
               : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
           }`}
         >
-          <Mic className="w-4 h-4 mb-1" />
+          <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
           <span>Voz/Texto</span>
         </button>
 
         <button
           onClick={() => setActiveTab('music')}
-          className={`flex-1 flex flex-col items-center py-2 px-1 rounded-xl text-xs font-medium transition ${
+          className={`flex-1 min-w-[56px] sm:min-w-0 flex flex-col items-center py-1.5 sm:py-2 px-1 rounded-xl text-[10px] sm:text-xs font-medium transition ${
             activeTab === 'music'
               ? 'bg-neutral-800 text-rose-400 font-bold shadow'
               : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
           }`}
         >
-          <Volume2 className="w-4 h-4 mb-1" />
+          <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
           <span>Sonido</span>
         </button>
 
         <button
           onClick={() => setActiveTab('watermark')}
-          className={`flex-1 flex flex-col items-center py-2 px-1 rounded-xl text-xs font-medium transition ${
+          className={`flex-1 min-w-[56px] sm:min-w-0 flex flex-col items-center py-1.5 sm:py-2 px-1 rounded-xl text-[10px] sm:text-xs font-medium transition ${
             activeTab === 'watermark'
               ? 'bg-neutral-800 text-rose-400 font-bold shadow'
               : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
           }`}
         >
-          <ImageIcon className="w-4 h-4 mb-1" />
+          <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
           <span>Logo</span>
         </button>
+
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="hidden lg:flex flex-col items-center justify-center p-1.5 rounded-xl text-neutral-500 hover:text-white hover:bg-neutral-800 transition flex-shrink-0"
+            title="Ocultar barra lateral"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Tab Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 text-sm">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-5 text-sm custom-scrollbar">
         {/* ========================================================= */}
         {/* TAB 1: MEDIOS (VIDEOS Y FOTOS)                           */}
         {/* ========================================================= */}

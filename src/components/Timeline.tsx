@@ -55,6 +55,7 @@ interface TimelineProps {
   textClips?: TextClipItem[];
   setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
   onAddTextClipClick?: () => void;
+  className?: string;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -85,6 +86,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   textClips = [],
   setTextClips,
   onAddTextClipClick,
+  className,
 }) => {
   const trackContainerRef = useRef<HTMLDivElement>(null);
   const [draggingAudioId, setDraggingAudioId] = useState<string | null>(null);
@@ -323,20 +325,37 @@ export const Timeline: React.FC<TimelineProps> = ({
     };
   }, [resizingSubId, draggingSubId, duration, setSubtitles]);
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // If clicking on an empty track area, seek to that position
+  const isScrubbingRef = useRef(false);
+
+  const seekFromPointer = (clientX: number) => {
     if (!trackContainerRef.current) return;
-    const target = e.target as HTMLElement;
-    // If user clicked directly on a block, the block's onClick will handle selection
-    if (target.closest('[data-timeline-block]')) {
-      return;
-    }
     const rect = trackContainerRef.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
+    const clickX = clientX - rect.left;
     const newRatio = Math.max(0, Math.min(1, clickX / rect.width));
     onSeek(newRatio * (duration || 15));
-    // Clear selection if clicking on blank canvas
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-timeline-block]')) return;
+    isScrubbingRef.current = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    seekFromPointer(e.clientX);
     onSelectItem(null);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isScrubbingRef.current) return;
+    seekFromPointer(e.clientX);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isScrubbingRef.current) {
+      isScrubbingRef.current = false;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch (err) {}
+    }
   };
 
   const playheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -357,59 +376,25 @@ export const Timeline: React.FC<TimelineProps> = ({
   let accumulatedVideoTime = 0;
 
   return (
-    <div className="h-52 border-t border-neutral-800 bg-neutral-950 flex flex-col select-none z-20 shadow-2xl">
+    <div className={className || "h-52 border-t border-neutral-800 bg-neutral-950 flex flex-col select-none z-20 shadow-2xl flex-shrink-0"}>
       {/* Top Controls Bar */}
-      <div className="h-10 border-b border-neutral-800/80 px-4 flex items-center justify-between text-xs bg-neutral-900/80 backdrop-blur">
+      <div className="min-h-[40px] border-b border-neutral-800/80 px-2 sm:px-4 flex items-center justify-between text-xs bg-neutral-900/80 backdrop-blur overflow-x-auto no-scrollbar gap-2 flex-shrink-0">
         {/* Left: Editing Tools (Split, Copy, Paste, Delete, Add) */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap flex-shrink-0">
           {/* Split / Cut */}
           <button
             onClick={() => onSplitClip(currentTime)}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 shadow-sm"
-            title="Cortar el elemento seleccionado en la aguja de reproducción (S)"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 shadow-sm text-[11px] sm:text-xs whitespace-nowrap"
+            title="Cortar el elemento seleccionado en la aguja de reproducción"
           >
             <Scissors className="w-3.5 h-3.5 text-rose-400" />
-            <span>Cortar aquí ✂️</span>
+            <span>Cortar ✂️</span>
           </button>
-
-          {/* Copy */}
-          <button
-            onClick={onCopySelected}
-            disabled={!selectedItem}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
-            title="Copiar elemento seleccionado (Ctrl+C)"
-          >
-            <Copy className="w-3.5 h-3.5 text-sky-400" />
-            <span className="hidden sm:inline">Copiar</span>
-          </button>
-
-          {/* Paste */}
-          <button
-            onClick={onPasteAtPlayhead}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 shadow-sm"
-            title="Pegar en la posición actual de la aguja (Ctrl+V)"
-          >
-            <Clipboard className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Pegar</span>
-          </button>
-
-          {/* Delete */}
-          <button
-            onClick={onDeleteSelected}
-            disabled={!selectedItem}
-            className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-rose-950/50 text-neutral-400 hover:text-rose-400 rounded-lg border border-neutral-700 hover:border-rose-900 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
-            title="Eliminar elemento seleccionado (Supr)"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Borrar</span>
-          </button>
-
-          <div className="h-4 w-px bg-neutral-700/60 mx-1 hidden sm:block" />
 
           {/* Add Video Button */}
           <button
             onClick={onAddVideoClick}
-            className="flex items-center gap-1 px-2.5 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-white rounded-lg border border-rose-500/30 font-semibold transition active:scale-95"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-white rounded-lg border border-rose-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
             title="Sumar otro video al lado sin reemplazar el actual"
           >
             <Plus className="w-3.5 h-3.5 text-rose-400" />
@@ -419,7 +404,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           {/* Add Sound Button */}
           <button
             onClick={onAddSoundClick}
-            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-white rounded-lg border border-emerald-500/30 font-semibold transition active:scale-95"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-white rounded-lg border border-emerald-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
             title="Agregar un efecto de sonido o música en la aguja"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-400" />
@@ -430,7 +415,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           {onAddTextClipClick && (
             <button
               onClick={onAddTextClipClick}
-              className="flex items-center gap-1 px-2.5 py-1 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white rounded-lg border border-purple-500/30 font-semibold transition active:scale-95"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white rounded-lg border border-purple-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
               title="Agregar un nuevo título en la aguja de reproducción"
             >
               <Plus className="w-3.5 h-3.5 text-purple-400" />
@@ -442,62 +427,72 @@ export const Timeline: React.FC<TimelineProps> = ({
           {onAddSubtitleClick && (
             <button
               onClick={onAddSubtitleClick}
-              className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-white rounded-lg border border-amber-500/30 font-semibold transition active:scale-95"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-white rounded-lg border border-amber-500/30 font-semibold transition active:scale-95 text-[11px] sm:text-xs whitespace-nowrap"
               title="Agregar un nuevo subtítulo en la aguja de reproducción"
             >
               <Plus className="w-3.5 h-3.5 text-amber-400" />
-              <span>+ Subtítulo</span>
+              <span>+ Sub</span>
             </button>
           )}
+
+          {/* Copy */}
+          <button
+            onClick={onCopySelected}
+            disabled={!selectedItem}
+            className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-[11px] sm:text-xs whitespace-nowrap"
+            title="Copiar elemento seleccionado (Ctrl+C)"
+          >
+            <Copy className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden sm:inline">Copiar</span>
+          </button>
+
+          {/* Paste */}
+          <button
+            onClick={onPasteAtPlayhead}
+            className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg border border-neutral-700 font-semibold transition active:scale-95 shadow-sm text-[11px] sm:text-xs whitespace-nowrap"
+            title="Pegar en la posición actual de la aguja (Ctrl+V)"
+          >
+            <Clipboard className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Pegar</span>
+          </button>
+
+          {/* Delete */}
+          <button
+            onClick={onDeleteSelected}
+            disabled={!selectedItem}
+            className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-rose-950/50 text-neutral-400 hover:text-rose-400 rounded-lg border border-neutral-700 hover:border-rose-900 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-[11px] sm:text-xs whitespace-nowrap"
+            title="Eliminar elemento seleccionado (Supr)"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Borrar</span>
+          </button>
         </div>
 
-        {/* Center: Current time readout */}
-        <div className="flex items-center gap-2 font-mono font-bold text-neutral-300">
-          <button
-            onClick={() => onSeek(0)}
-            className="p-1 hover:text-white text-neutral-400"
-            title="Ir al inicio"
-          >
-            <ChevronsLeft className="w-4 h-4" />
-          </button>
-          <span className="text-rose-400">{formatMinSec(currentTime)}</span>
-          <span className="text-neutral-600">/</span>
-          <span>{formatMinSec(duration || 15)}</span>
-          <button
-            onClick={() => onSeek(duration || 15)}
-            className="p-1 hover:text-white text-neutral-400"
-            title="Ir al final"
-          >
-            <ChevronsRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Right: Selected item indicator badge and quick actions */}
-        <div className="flex items-center gap-2 text-neutral-400 text-xs">
-          {selectedItem?.track === 'audio' && (
+        {/* Center/Right: Current time readout */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 font-mono font-bold text-neutral-300 text-[11px] sm:text-xs">
             <button
-              type="button"
-              onClick={() => {
-                if (setAudioClips) {
-                  setAudioClips((prev) =>
-                    prev.map((c) => (c.id === selectedItem.id ? { ...c, start: 0 } : c))
-                  );
-                }
-              }}
-              className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
-              title="Mover este sonido al segundo 00:00 (inicio)"
+              onClick={() => onSeek(0)}
+              className="p-1 hover:text-white text-neutral-400"
+              title="Ir al inicio"
             >
-              <span>⏮️ Mover sonido al inicio (0s)</span>
+              <ChevronsLeft className="w-3.5 h-3.5" />
             </button>
-          )}
+            <span className="text-rose-400">{formatMinSec(currentTime)}</span>
+            <span className="text-neutral-600">/</span>
+            <span>{formatMinSec(duration || 15)}</span>
+            <button
+              onClick={() => onSeek(duration || 15)}
+              className="p-1 hover:text-white text-neutral-400"
+              title="Ir al final"
+            >
+              <ChevronsRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-          {selectedItem ? (
-            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold animate-pulse">
-              🎯 Seleccionado: {selectedItem.track.toUpperCase()}
-            </span>
-          ) : (
-            <span className="text-[10px] text-neutral-500 hidden lg:inline">
-              Haz clic en cualquier pista para seleccionarla o cortarla
+          {selectedItem && (
+            <span className="hidden md:inline-block px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold animate-pulse whitespace-nowrap">
+              🎯 {selectedItem.track.toUpperCase()}
             </span>
           )}
         </div>
@@ -506,8 +501,11 @@ export const Timeline: React.FC<TimelineProps> = ({
       {/* Tracks Area */}
       <div
         ref={trackContainerRef}
-        onClick={handleTimelineClick}
-        className="flex-1 relative p-1.5 px-6 flex flex-col justify-around cursor-pointer overflow-hidden bg-neutral-950/90"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="flex-1 relative p-1.5 px-3 sm:px-6 flex flex-col justify-around cursor-pointer overflow-hidden bg-neutral-950/90 touch-none"
       >
         {/* Playhead vertical needle */}
         <div
