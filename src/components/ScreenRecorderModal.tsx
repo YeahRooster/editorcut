@@ -21,6 +21,16 @@ import {
   Maximize2
 } from 'lucide-react';
 import { useI18n } from '../i18n/context';
+import {
+  Input,
+  Output,
+  BlobSource,
+  BufferTarget,
+  Mp4InputFormat,
+  WebMInputFormat,
+  Mp4OutputFormat,
+  Conversion,
+} from 'mediabunny';
 
 interface ScreenRecorderModalProps {
   isOpen: boolean;
@@ -52,6 +62,9 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   // Mode and settings
   const [mode, setMode] = useState<RecordMode>('screen_only');
   const [areaMode, setAreaMode] = useState<AreaMode>('fullscreen');
+  const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
+  const formatRef = useRef<'mp4' | 'webm'>('mp4');
+  const [isConvertingMp4, setIsConvertingMp4] = useState<boolean>(false);
   const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, width: 1, height: 1 });
   const [isAdjustingCrop, setIsAdjustingCrop] = useState<boolean>(false);
 
@@ -662,12 +675,18 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
     }
   }, [isOpen, mode, includeMic, initWebcam, initScreen, initMic]);
 
+  // Sync formatRef
+  useEffect(() => {
+    formatRef.current = format;
+  }, [format]);
+
   // Clean up on modal close
   useEffect(() => {
     if (!isOpen) {
       stopAllMediaStreams();
       setStatus('idle');
       setIsMinimized(false);
+      setIsConvertingMp4(false);
       setRecordedBlob(null);
       if (recordedUrl) {
         URL.revokeObjectURL(recordedUrl);
@@ -863,10 +882,46 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
         }
       };
 
-      recorder.onstop = () => {
-        const fullBlob = new Blob(recordedChunksRef.current, { type: selectedMime });
-        setRecordedBlob(fullBlob);
-        const url = URL.createObjectURL(fullBlob);
+      recorder.onstop = async () => {
+        const rawBlob = new Blob(recordedChunksRef.current, { type: selectedMime });
+        const targetFormat = formatRef.current;
+
+        if (targetFormat === 'mp4') {
+          setIsConvertingMp4(true);
+          try {
+            const isWebm = rawBlob.type.includes('webm');
+            const input = new Input({
+              source: new BlobSource(rawBlob),
+              formats: isWebm ? [new WebMInputFormat()] : [new Mp4InputFormat()],
+            });
+            const output = new Output({
+              format: new Mp4OutputFormat(),
+              target: new BufferTarget(),
+            });
+
+            const conversion = await Conversion.init({ input, output });
+            await conversion.execute();
+
+            const finalBuffer = output.target.buffer;
+            if (finalBuffer && finalBuffer.byteLength > 0) {
+              const mp4Blob = new Blob([finalBuffer], { type: 'video/mp4' });
+              setRecordedBlob(mp4Blob);
+              const url = URL.createObjectURL(mp4Blob);
+              setRecordedUrl(url);
+              setIsMinimized(false);
+              setIsConvertingMp4(false);
+              setStatus('review');
+              return;
+            }
+          } catch (remuxErr) {
+            console.warn('Fast remux to progressive MP4 fell back to raw blob:', remuxErr);
+          } finally {
+            setIsConvertingMp4(false);
+          }
+        }
+
+        setRecordedBlob(rawBlob);
+        const url = URL.createObjectURL(rawBlob);
         setRecordedUrl(url);
         setIsMinimized(false);
         setStatus('review');
@@ -923,6 +978,7 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
     }
     setRecordedBlob(null);
     setRecordingSeconds(0);
+    setIsConvertingMp4(false);
     setStatus('idle');
     setIsMinimized(false);
   };
@@ -931,10 +987,12 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   const handleImportToTimeline = () => {
     if (!recordedBlob) return;
     const timestamp = Date.now();
+    const ext = format === 'mp4' ? 'mp4' : 'webm';
+    const mime = format === 'mp4' ? 'video/mp4' : (recordedBlob.type || 'video/webm');
     const file = new File(
       [recordedBlob],
-      `Grabacion_Pantalla_${timestamp}.webm`,
-      { type: recordedBlob.type }
+      `Grabacion_Pantalla_${timestamp}.${ext}`,
+      { type: mime }
     );
     onAddVideoClip(file);
     onClose();
@@ -943,9 +1001,10 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   // Direct download to user's computer
   const handleDownloadFile = () => {
     if (!recordedBlob || !recordedUrl) return;
+    const ext = format === 'mp4' ? 'mp4' : 'webm';
     const a = document.createElement('a');
     a.href = recordedUrl;
-    a.download = `EditorCut_Grabacion_${Date.now()}.webm`;
+    a.download = `EditorCut_Grabacion_${Date.now()}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -973,6 +1032,9 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
             </span>
             <span className="text-[10px] font-mono uppercase text-neutral-400 px-1.5 py-0.5 rounded bg-neutral-800">
               {areaMode === 'fullscreen' ? '100%' : areaMode}
+            </span>
+            <span className="text-[10px] font-mono uppercase text-rose-400 font-bold px-1.5 py-0.5 rounded bg-neutral-800 border border-rose-500/30">
+              {format}
             </span>
           </div>
 
@@ -1060,7 +1122,25 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 </div>
               )}
 
-              {status === 'review' ? (
+              {isConvertingMp4 ? (
+                /* ========================================================================= */
+                /* CONVERTING MP4 LOADER                                                     */
+                /* ========================================================================= */
+                <div className="py-24 flex flex-col items-center justify-center space-y-4 text-center animate-in fade-in duration-300">
+                  <div className="relative w-16 h-16">
+                    <div className="w-16 h-16 rounded-full border-4 border-rose-500/20 border-t-rose-500 animate-spin" />
+                    <Sparkles className="w-6 h-6 text-rose-400 absolute inset-0 m-auto animate-pulse" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-white tracking-wide">
+                      {t.recorder.processingMp4}
+                    </h3>
+                    <p className="text-xs text-neutral-400">
+                      Creando video MP4 progresivo y de alta compatibilidad...
+                    </p>
+                  </div>
+                </div>
+              ) : status === 'review' ? (
                 /* ========================================================================= */
                 /* REVIEW / PREVIEW VIEW: Post-Recording Actions                             */
                 /* ========================================================================= */
@@ -1077,7 +1157,7 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                   </div>
 
                   {/* Metadata Summary */}
-                  <div className="flex items-center justify-center gap-6 text-xs text-neutral-300">
+                  <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-neutral-300">
                     <div className="flex items-center gap-1.5">
                       <span className="text-neutral-500">{t.recorder.duration}:</span>
                       <span className="font-bold text-white font-mono">{formatTime(recordingSeconds)}</span>
@@ -1087,8 +1167,12 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                       <span className="font-bold text-white font-mono">{formatFileSize(recordedBlob)}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      <span className="text-neutral-500">{t.recorder.format}:</span>
+                      <span className="font-bold text-rose-400 font-mono uppercase">{format}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <span className="text-neutral-500">{t.recorder.areaMode}:</span>
-                      <span className="font-bold text-rose-400 font-mono">
+                      <span className="font-bold text-neutral-200 font-mono">
                         {areaMode === 'fullscreen' ? t.recorder.areaFullscreen : areaMode}
                       </span>
                     </div>
@@ -1109,7 +1193,7 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                       className="flex items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs sm:text-sm border border-neutral-700 transition"
                     >
                       <Download className="w-4 h-4 text-neutral-300" />
-                      <span>{t.recorder.downloadVideo}</span>
+                      <span>{format === 'mp4' ? t.recorder.downloadVideoMp4 : t.recorder.downloadVideoWebm}</span>
                     </button>
 
                     <button
@@ -1449,7 +1533,37 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                     )}
 
                     {/* Right: Audio Toggles & Auto-minimize */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Format toggle: MP4 / WebM */}
+                      <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-lg p-0.5 gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setFormat('mp4')}
+                          disabled={status === 'recording' || status === 'paused'}
+                          className={`px-2 py-1 rounded text-[10px] sm:text-[11px] font-bold transition ${
+                            format === 'mp4'
+                              ? 'bg-rose-600 text-white shadow-sm'
+                              : 'text-neutral-400 hover:text-white'
+                          } disabled:opacity-50`}
+                          title={t.recorder.formatMp4}
+                        >
+                          MP4
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormat('webm')}
+                          disabled={status === 'recording' || status === 'paused'}
+                          className={`px-2 py-1 rounded text-[10px] sm:text-[11px] font-bold transition ${
+                            format === 'webm'
+                              ? 'bg-rose-600 text-white shadow-sm'
+                              : 'text-neutral-400 hover:text-white'
+                          } disabled:opacity-50`}
+                          title={t.recorder.formatWebm}
+                        >
+                          WebM
+                        </button>
+                      </div>
+
                       <button
                         onClick={() => setIncludeMic(!includeMic)}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition ${
