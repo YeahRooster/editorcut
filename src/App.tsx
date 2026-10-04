@@ -1739,7 +1739,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-neutral-950 text-neutral-100 overflow-hidden font-sans relative">
+    <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full bg-neutral-950 text-neutral-100 overflow-hidden font-sans relative select-none">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -1855,11 +1855,7 @@ export const App: React.FC = () => {
 
       {/* Main Workspace (Sidebar + Canvas) */}
       <div
-        className={`flex-1 flex flex-col lg:flex-row overflow-hidden relative ${
-          mobileTab === 'timeline'
-            ? 'flex-none h-[38vh] sm:h-[44vh] lg:flex-1 lg:h-auto'
-            : 'flex-1'
-        }`}
+        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative"
       >
         {/* Toggle to reopen LeftSidebar on desktop when collapsed */}
         {!isSidebarOpen && (
@@ -1876,7 +1872,7 @@ export const App: React.FC = () => {
         {/* Left Control Drawer */}
         <LeftSidebar
           className={`
-            ${mobileTab === 'tools' ? 'flex flex-1 w-full order-2 lg:order-1' : 'hidden'}
+            ${mobileTab === 'tools' ? 'flex flex-1 min-h-0 w-full order-2 lg:order-1' : 'hidden'}
             ${isSidebarOpen ? 'lg:flex lg:w-80 xl:w-96 lg:order-1' : 'lg:hidden'}
             border-t lg:border-t-0 lg:border-r border-neutral-800 h-full overflow-hidden
           `}
@@ -1919,9 +1915,9 @@ export const App: React.FC = () => {
         {/* Center Live Stage Canvas */}
         <PreviewCanvas
           className={`
-            ${mobileTab === 'tools' ? 'h-[34vh] sm:h-[38vh] flex-none w-full order-1 lg:order-2' : ''}
-            ${mobileTab === 'timeline' ? 'flex-1 w-full h-full lg:order-2' : ''}
-            ${mobileTab === 'canvas' ? 'flex-1 w-full h-full lg:order-2' : ''}
+            ${mobileTab === 'tools' ? 'h-[30vh] sm:h-[36vh] flex-none w-full order-1 lg:order-2' : ''}
+            ${mobileTab === 'timeline' ? 'flex-1 min-h-0 w-full h-full lg:order-2' : ''}
+            ${mobileTab === 'canvas' ? 'flex-1 min-h-0 w-full h-full lg:order-2' : ''}
             lg:flex-1 lg:h-full
           `}
           aspectRatio={aspectRatio}
@@ -1958,7 +1954,7 @@ export const App: React.FC = () => {
       {/* Bottom Timeline with Drag & Drop tracks and Scissors */}
       <Timeline
         className={`
-          ${mobileTab === 'timeline' ? 'flex-1 min-h-0 w-full' : 'hidden'}
+          ${mobileTab === 'timeline' ? 'flex-none h-[252px] sm:h-56 xl:h-64 w-full' : 'hidden'}
           lg:flex lg:flex-none lg:h-56 xl:lg:h-64
           border-t border-neutral-800 bg-neutral-950 flex-col select-none z-20 shadow-2xl flex-shrink-0
         `}
@@ -1992,7 +1988,7 @@ export const App: React.FC = () => {
       />
 
       {/* Mobile & Tablet Bottom Switcher Bar (< lg) */}
-      <nav className="lg:hidden flex items-center justify-around bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800/90 px-3 py-1.5 z-30 shrink-0">
+      <nav className="lg:hidden flex items-center justify-around bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800/90 px-3 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] z-30 shrink-0">
         <button
           onClick={() => setMobileTab('timeline')}
           className={`flex-1 flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition font-semibold text-[11px] ${

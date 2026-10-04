@@ -398,7 +398,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             title="Sumar otro video al lado sin reemplazar el actual"
           >
             <Plus className="w-3.5 h-3.5 text-rose-400" />
-            <span>+ Video</span>
+            <span>Video</span>
           </button>
 
           {/* Add Sound Button */}
@@ -408,7 +408,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             title="Agregar un efecto de sonido o música en la aguja"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-400" />
-            <span>+ Sonido</span>
+            <span>Sonido</span>
           </button>
 
           {/* Add Text / Title Button */}
@@ -419,7 +419,7 @@ export const Timeline: React.FC<TimelineProps> = ({
               title="Agregar un nuevo título en la aguja de reproducción"
             >
               <Plus className="w-3.5 h-3.5 text-purple-400" />
-              <span>+ Título</span>
+              <span>Título</span>
             </button>
           )}
 
@@ -431,7 +431,7 @@ export const Timeline: React.FC<TimelineProps> = ({
               title="Agregar un nuevo subtítulo en la aguja de reproducción"
             >
               <Plus className="w-3.5 h-3.5 text-amber-400" />
-              <span>+ Sub</span>
+              <span>Sub</span>
             </button>
           )}
 
@@ -505,7 +505,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="flex-1 relative p-1.5 px-3 sm:px-6 flex flex-col justify-around cursor-pointer overflow-hidden bg-neutral-950/90 touch-none"
+        className="flex-1 relative p-1.5 sm:p-2 px-2 sm:px-6 flex flex-col justify-between gap-1 sm:gap-1.5 cursor-pointer overflow-hidden bg-neutral-950/90 touch-none"
       >
         {/* Playhead vertical needle */}
         <div
@@ -516,13 +516,33 @@ export const Timeline: React.FC<TimelineProps> = ({
           <div className="w-0.5 flex-1 bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.9)]" />
         </div>
 
+        {/* Time ruler bar */}
+        <div className="h-4 sm:h-5 relative flex items-center border-b border-neutral-800/60 text-[9px] font-mono text-neutral-500 pointer-events-none select-none flex-shrink-0">
+          {Array.from({ length: Math.min(12, Math.ceil(duration || 15)) + 1 }).map((_, i) => {
+            const step = Math.max(1, Math.round((duration || 15) / 10));
+            const sec = i * step;
+            const pct = duration > 0 ? (sec / duration) * 100 : 0;
+            if (pct > 100) return null;
+            return (
+              <div
+                key={sec}
+                className="absolute top-0 bottom-0 flex flex-col justify-end items-center"
+                style={{ left: `${pct}%` }}
+              >
+                <div className="h-1.5 w-[1px] bg-neutral-700" />
+                <span className="scale-75 origin-bottom -translate-x-1/2">{sec}s</span>
+              </div>
+            );
+          })}
+        </div>
+
         {/* TRACK 1: Video Track (Supports Multiple Consecutive Clips!) */}
-        <div className="h-8 bg-neutral-900/60 rounded-lg border border-neutral-800/80 relative flex items-center overflow-hidden">
-          <Film className="w-3.5 h-3.5 text-sky-400 absolute left-2 pointer-events-none z-20" />
+        <div className="h-10 sm:h-8 bg-neutral-900/70 rounded-xl border border-neutral-800/80 relative flex items-center overflow-hidden flex-shrink-0">
+          <Film className="w-3.5 h-3.5 text-sky-400 absolute left-2 sm:left-2.5 pointer-events-none z-20" />
           
           {effectiveVideoClips.length === 0 ? (
-            <span className="text-[11px] text-neutral-500 ml-8 truncate">
-              Pista de Video (Arrastra un archivo o haz clic en "+ Video")
+            <span className="text-[11px] sm:text-xs text-neutral-400 ml-8 truncate">
+              Pista de Video (Arrastra un archivo o haz clic en "Video")
             </span>
           ) : (
             effectiveVideoClips.map((clip, index) => {
@@ -596,7 +616,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         </div>
 
         {/* TRACK 2: Title & Text clips (Draggable, Stretchable, Animated, Behind-Person compatible) */}
-        <div className="h-7 bg-neutral-900/40 rounded-lg border border-neutral-800/60 relative flex items-center overflow-hidden px-2">
+        <div className="h-9 sm:h-7 bg-neutral-900/50 rounded-xl border border-neutral-800/70 relative flex items-center overflow-hidden px-2 flex-shrink-0">
           <Type className="w-3.5 h-3.5 text-purple-400 absolute left-2 pointer-events-none z-20" />
 
           {textClips.length === 0 ? (
@@ -696,7 +716,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         </div>
 
         {/* TRACK 3: Subtitles / Speech blocks (Amber) */}
-        <div className="h-7 bg-neutral-900/40 rounded-lg border border-neutral-800/60 relative flex items-center overflow-hidden px-2">
+        <div className="h-9 sm:h-7 bg-neutral-900/50 rounded-xl border border-neutral-800/70 relative flex items-center overflow-hidden px-2 flex-shrink-0">
           <Type className="w-3.5 h-3.5 text-amber-400 absolute left-2 pointer-events-none z-20" />
           
           {subtitles.length === 0 ? (
@@ -785,8 +805,8 @@ export const Timeline: React.FC<TimelineProps> = ({
           )}
         </div>
 
-        {/* TRACK 3: Audio & Sound Effects (Supports Multiple Overlapping Tracks!) */}
-        <div className="h-8 bg-neutral-900/60 rounded-lg border border-neutral-800/80 relative flex items-center overflow-hidden">
+        {/* TRACK 4: Audio & Sound Effects (Supports Multiple Overlapping Tracks!) */}
+        <div className="h-9 sm:h-8 bg-neutral-900/60 rounded-xl border border-neutral-800/80 relative flex items-center overflow-hidden flex-shrink-0">
           <Music className="w-3.5 h-3.5 text-emerald-400 absolute left-2 pointer-events-none z-20" />
 
           {audioClips.length === 0 ? (
@@ -901,10 +921,10 @@ export const Timeline: React.FC<TimelineProps> = ({
           )}
         </div>
 
-        {/* TRACK 4: Logo / Watermark Track (When Active) */}
+        {/* TRACK 5: Logo / Watermark Track (When Active) */}
         {watermarkConfig.url && (
-          <div className="h-6 bg-neutral-900/40 rounded-lg border border-neutral-800/60 relative flex items-center overflow-hidden px-2">
-            <ImageIcon className="w-3 h-3 text-purple-400 absolute left-2 pointer-events-none z-20" />
+          <div className="h-8 sm:h-6 bg-neutral-900/40 rounded-xl border border-neutral-800/60 relative flex items-center overflow-hidden px-2 flex-shrink-0">
+            <ImageIcon className="w-3.5 h-3.5 text-purple-400 absolute left-2 pointer-events-none z-20" />
             <div
               data-timeline-block="true"
               onClick={(e) => {

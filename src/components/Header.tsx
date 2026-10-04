@@ -37,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentProjectName,
 }) => {
   return (
-    <header className="h-14 sm:h-16 border-b border-neutral-800 bg-neutral-900/95 backdrop-blur px-2.5 sm:px-5 flex items-center justify-between z-30 select-none flex-shrink-0 gap-1.5 sm:gap-4">
+    <header className="h-12 sm:h-16 border-b border-neutral-800 bg-neutral-900/95 backdrop-blur px-2.5 sm:px-5 flex items-center justify-between z-30 select-none flex-shrink-0 gap-1.5 sm:gap-4">
       {/* Brand & Badge */}
       <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-950/40 flex-shrink-0">
