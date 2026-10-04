@@ -161,10 +161,16 @@ export const App: React.FC = () => {
 
   // 16. Landing Presentation & Onboarding Tour State
   const [showLanding, setShowLanding] = useState<boolean>(() => {
-    return localStorage.getItem('simplecut_skip_landing') !== 'true';
+    return (
+      localStorage.getItem('editorcut_skip_landing') !== 'true' &&
+      localStorage.getItem('simplecut_skip_landing') !== 'true'
+    );
   });
   const [isTourOpen, setIsTourOpen] = useState<boolean>(() => {
-    return localStorage.getItem('simplecut_tour_seen') !== 'true';
+    return (
+      localStorage.getItem('editorcut_tour_seen') !== 'true' &&
+      localStorage.getItem('simplecut_tour_seen') !== 'true'
+    );
   });
 
   // Canvas & Video element refs

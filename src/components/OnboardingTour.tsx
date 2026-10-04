@@ -27,7 +27,7 @@ export interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
-    title: '¡Bienvenido a SimpleCut Studio!',
+    title: '¡Bienvenido a EditorCut!',
     subtitle: 'Editor de video inteligente en tu navegador',
     description: 'Crea videos de alto impacto para Reels, TikTok y YouTube sin necesidad de instalar programas ni pagar suscripciones.',
     tips: [
@@ -145,6 +145,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
   const handleNext = () => {
     if (isLast) {
+      localStorage.setItem('editorcut_tour_seen', 'true');
       localStorage.setItem('simplecut_tour_seen', 'true');
       onClose();
     } else {
@@ -159,6 +160,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   };
 
   const handleSkip = () => {
+    localStorage.setItem('editorcut_tour_seen', 'true');
     localStorage.setItem('simplecut_tour_seen', 'true');
     onClose();
   };

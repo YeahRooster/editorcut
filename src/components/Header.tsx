@@ -56,7 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <h1 className="text-sm sm:text-lg font-black tracking-tight text-white m-0 truncate group-hover:text-rose-300 transition">
-              SimpleCut<span className="hidden sm:inline"> Studio</span>
+              EditorCut<span className="hidden sm:inline"> Studio</span>
             </h1>
             <span className="hidden md:inline px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-full flex-shrink-0">
               Edición Fácil 👴👌

@@ -32,15 +32,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenProjects,
 }) => {
   const [skipLanding, setSkipLanding] = useState<boolean>(() => {
-    return localStorage.getItem('simplecut_skip_landing') === 'true';
+    return localStorage.getItem('editorcut_skip_landing') === 'true' || localStorage.getItem('simplecut_skip_landing') === 'true';
   });
 
   const handleToggleSkip = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.checked;
     setSkipLanding(val);
     if (val) {
-      localStorage.setItem('simplecut_skip_landing', 'true');
+      localStorage.setItem('editorcut_skip_landing', 'true');
     } else {
+      localStorage.removeItem('editorcut_skip_landing');
       localStorage.removeItem('simplecut_skip_landing');
     }
   };
@@ -55,7 +56,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-white">SimpleCut Studio</span>
+              <span className="text-lg font-black tracking-tight text-white">EditorCut</span>
               <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-full">
                 Gratis & Sin Registro
               </span>
@@ -192,7 +193,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
                       <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-                      <span className="text-[10px] text-neutral-400 font-mono ml-2">SimpleCut Studio v2.0</span>
+                      <span className="text-[10px] text-neutral-400 font-mono ml-2">EditorCut v2.0</span>
                     </div>
                     <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
                       LIVE PREVIEW
@@ -247,7 +248,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* Feature Highlights Grid ("Lo que hace SimpleCut") */}
+        {/* Feature Highlights Grid ("Lo que hace EditorCut") */}
         <section className="space-y-8">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <h2 className="text-xs font-bold uppercase tracking-wider text-rose-400">Capacidades del Estudio</h2>
@@ -434,9 +435,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <footer className="border-t border-neutral-800/80 bg-neutral-950 px-4 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-400">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-rose-600 flex items-center justify-center text-white font-black text-xs">
-            S
+            E
           </div>
-          <span>SimpleCut Studio • Editor de video web para creadores</span>
+          <span>EditorCut • Editor de video web para creadores</span>
         </div>
 
         {/* Skip landing screen toggle */}
