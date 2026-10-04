@@ -10,7 +10,9 @@ import {
   Save,
   Upload,
   Mic,
-  Video
+  Video,
+  HelpCircle,
+  Home
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -23,6 +25,8 @@ interface HeaderProps {
   onProjectsClick?: () => void;
   onQuickSaveClick?: () => void;
   currentProjectName?: string;
+  onOpenLanding?: () => void;
+  onOpenTour?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,17 +39,23 @@ export const Header: React.FC<HeaderProps> = ({
   onProjectsClick,
   onQuickSaveClick,
   currentProjectName,
+  onOpenLanding,
+  onOpenTour,
 }) => {
   return (
     <header className="h-12 sm:h-16 border-b border-neutral-800 bg-neutral-900/95 backdrop-blur px-2.5 sm:px-5 flex items-center justify-between z-30 select-none flex-shrink-0 gap-1.5 sm:gap-4">
       {/* Brand & Badge */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
-        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-950/40 flex-shrink-0">
+      <div 
+        onClick={onOpenLanding}
+        className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0 cursor-pointer hover:opacity-90 transition group"
+        title="Ver pantalla de inicio y presentación"
+      >
+        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-950/40 flex-shrink-0 group-hover:scale-105 transition">
           <Video className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white m-0 truncate">
+            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white m-0 truncate group-hover:text-rose-300 transition">
               SimpleCut<span className="hidden sm:inline"> Studio</span>
             </h1>
             <span className="hidden md:inline px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-full flex-shrink-0">
@@ -110,6 +120,28 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Actions */}
       <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        {onOpenLanding && (
+          <button
+            onClick={onOpenLanding}
+            className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3 sm:py-2 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700/70 transition"
+            title="Ver pantalla de inicio y presentación"
+          >
+            <Home className="w-3.5 h-3.5 text-neutral-300" />
+            <span className="hidden xl:inline">Inicio</span>
+          </button>
+        )}
+
+        {onOpenTour && (
+          <button
+            onClick={onOpenTour}
+            className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3 sm:py-2 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700/70 transition"
+            title="Ver tutorial guiado paso a paso"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden lg:inline">Tutorial</span>
+          </button>
+        )}
+
         {onProjectsClick && (
           <button
             onClick={onProjectsClick}

@@ -160,4 +160,15 @@ export interface TransitionConfig {
   transitionDuration: number;
 }
 
+export type ExportQuality = '4k' | '1080p' | '720p' | '480p';
+export type ExportFPS = 30 | 60;
+export type ExportFormat = 'mp4' | 'webm';
+
+export interface ExportSettings {
+  quality: ExportQuality;
+  fps: ExportFPS;
+  format: ExportFormat;
+}
+
+
 

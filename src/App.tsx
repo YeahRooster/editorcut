@@ -11,7 +11,9 @@ import type {
   AudioClip,
   TimelineSelection,
   TimelineTrackType,
-  TransitionConfig
+  TransitionConfig,
+  ExportSettings,
+  ExportQuality
 } from './types';
 import { Header } from './components/Header';
 import { LeftSidebar } from './components/LeftSidebar';
@@ -19,6 +21,8 @@ import { PreviewCanvas } from './components/PreviewCanvas';
 import { Timeline } from './components/Timeline';
 import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
+import { LandingPage } from './components/LandingPage';
+import { OnboardingTour } from './components/OnboardingTour';
 import { musicPlayer } from './utils/audioSynth';
 import { videoExporter } from './utils/videoExporter';
 import { whisperService } from './utils/whisperLocal';
@@ -131,11 +135,13 @@ export const App: React.FC = () => {
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [transcribeStatus, setTranscribeStatus] = useState<string>('');
 
-  // 12. Exporting State
+  // 12. Exporting State & Settings
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [exportComplete, setExportComplete] = useState<boolean>(false);
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
+  const [currentExportQuality, setCurrentExportQuality] = useState<ExportQuality>('1080p');
 
   // 13. Selected Canvas Element for keyboard deletion (Delete/Supr)
   const [selectedElement, setSelectedElement] = useState<'none' | 'watermark' | 'title' | 'subtitle'>('none');
@@ -152,6 +158,14 @@ export const App: React.FC = () => {
   // 15. Responsive Mobile & Tablet Layout State
   const [mobileTab, setMobileTab] = useState<'timeline' | 'tools' | 'canvas'>('timeline');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
+  // 16. Landing Presentation & Onboarding Tour State
+  const [showLanding, setShowLanding] = useState<boolean>(() => {
+    return localStorage.getItem('simplecut_skip_landing') !== 'true';
+  });
+  const [isTourOpen, setIsTourOpen] = useState<boolean>(() => {
+    return localStorage.getItem('simplecut_tour_seen') !== 'true';
+  });
 
   // Canvas & Video element refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1448,11 +1462,14 @@ export const App: React.FC = () => {
   };
 
   // Export pipeline with full Web Audio mixer (Video Audio + Added SFX/Music)
-  const handleExport = async () => {
+  const handleStartExportWithSettings = async (settings: ExportSettings) => {
     if (!canvasRef.current) return;
+    setCurrentExportQuality(settings.quality);
+    await new Promise((r) => setTimeout(r, 60));
     setIsExporting(true);
     setExportProgress(0);
     setExportComplete(false);
+    setExportedBlob(null);
 
     // Stop all live playback before setting up export
     setIsPlaying(false);
@@ -1703,7 +1720,8 @@ export const App: React.FC = () => {
             videoRef.current.play().catch(console.error);
           }
           setIsPlaying(true);
-        }
+        },
+        settings
       );
 
       setExportedBlob(blob);
@@ -1727,6 +1745,7 @@ export const App: React.FC = () => {
       alert('Hubo un error al exportar el video.');
       setIsExporting(false);
     } finally {
+      setCurrentExportQuality('1080p');
       setTimeout(() => {
         try {
           destinationNode.stream.getAudioTracks().forEach((t) => t.stop());
@@ -1737,6 +1756,31 @@ export const App: React.FC = () => {
       }, 600);
     }
   };
+
+  // Open Export Settings Dialog
+  const handleExport = () => {
+    setIsExportModalOpen(true);
+  };
+
+  // If user is on the welcome landing presentation screen
+  if (showLanding) {
+    return (
+      <LandingPage
+        onOpenEditor={(ratio) => {
+          if (ratio) setAspectRatio(ratio);
+          setShowLanding(false);
+        }}
+        onStartTour={() => {
+          setShowLanding(false);
+          setIsTourOpen(true);
+        }}
+        onOpenProjects={() => {
+          setShowLanding(false);
+          setIsProjectsModalOpen(true);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full bg-neutral-950 text-neutral-100 overflow-hidden font-sans relative select-none">
@@ -1803,6 +1847,8 @@ export const App: React.FC = () => {
         onProjectsClick={() => setIsProjectsModalOpen(true)}
         onQuickSaveClick={handleQuickSave}
         currentProjectName={currentProjectName}
+        onOpenLanding={() => setShowLanding(true)}
+        onOpenTour={() => setIsTourOpen(true)}
       />
 
       {/* AutoSave recovery prompt banner if available on start */}
@@ -1948,6 +1994,7 @@ export const App: React.FC = () => {
           isExporting={isExporting}
           selectedElement={selectedElement}
           setSelectedElement={setSelectedElement}
+          exportQuality={currentExportQuality}
         />
       </div>
 
@@ -2028,11 +2075,13 @@ export const App: React.FC = () => {
 
       {/* Export Progress & Download Modal */}
       <ExportModal
-        isOpen={isExporting}
+        isOpen={isExportModalOpen || isExporting}
         onClose={() => {
+          setIsExportModalOpen(false);
           setIsExporting(false);
           setExportComplete(false);
         }}
+        isExporting={isExporting}
         progress={exportProgress}
         isComplete={exportComplete}
         exportedBlob={exportedBlob}
@@ -2041,6 +2090,14 @@ export const App: React.FC = () => {
             videoExporter.downloadBlob(exportedBlob);
           }
         }}
+        onStartExport={handleStartExportWithSettings}
+        currentAspectRatio={aspectRatio}
+      />
+
+      {/* Interactive Onboarding Tour Modal */}
+      <OnboardingTour
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
       />
 
       {/* Projects Manager Modal */}

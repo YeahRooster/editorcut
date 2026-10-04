@@ -18,12 +18,18 @@ export class VideoExporter {
     durationSeconds: number,
     audioTracks: MediaStreamTrack[] | MediaStreamAudioDestinationNode | MediaStream | null,
     onProgress: (percent: number) => void,
-    onStartRecording?: () => void
+    onStartRecording?: () => void,
+    settings?: {
+      quality?: '4k' | '1080p' | '720p' | '480p';
+      fps?: 30 | 60;
+      format?: 'mp4' | 'webm';
+    }
   ): Promise<Blob> {
     this.recordedChunks = [];
 
-    // Capture 60fps stream from canvas for perfectly smooth, fluid video rendering
-    const canvasStream = canvas.captureStream(60);
+    // Capture configured fps stream (30fps or 60fps) from canvas
+    const fps = settings?.fps || 60;
+    const canvasStream = canvas.captureStream(fps);
 
     // If audio tracks are provided, add them to the canvasStream
     if (audioTracks) {
@@ -48,6 +54,13 @@ export class VideoExporter {
       }
     }
 
+    // Configure bitrate based on resolution quality
+    let bitrate = 10_000_000;
+    if (settings?.quality === '4k') bitrate = 28_000_000;
+    else if (settings?.quality === '1080p') bitrate = 12_000_000;
+    else if (settings?.quality === '720p') bitrate = 6_000_000;
+    else if (settings?.quality === '480p') bitrate = 2_500_000;
+
     // Prioritize MP4 formats so Windows Media Player can play without extra codecs
     const mimeTypes = [
       'video/mp4;codecs=avc1,mp4a.40.2',
@@ -68,7 +81,7 @@ export class VideoExporter {
 
     this.mediaRecorder = new MediaRecorder(canvasStream, {
       mimeType: selectedMime,
-      videoBitsPerSecond: 8_000_000, // 8 Mbps high quality
+      videoBitsPerSecond: bitrate,
     });
 
     return new Promise((resolve, reject) => {
@@ -84,6 +97,11 @@ export class VideoExporter {
 
       this.mediaRecorder.onstop = async () => {
         const rawBlob = new Blob(this.recordedChunks, { type: selectedMime });
+
+        if (settings?.format === 'webm') {
+          resolve(rawBlob);
+          return;
+        }
 
         try {
           // Remux fragmented stream into a progressive, standard MP4 with complete sample tables and duration

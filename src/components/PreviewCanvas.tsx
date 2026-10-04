@@ -8,7 +8,8 @@ import type {
   MediaAsset,
   VideoClip,
   TransitionConfig,
-  TimelineSelection
+  TimelineSelection,
+  ExportQuality
 } from '../types';
 import { selfieSegmenter } from '../utils/segmentation';
 import { 
@@ -52,11 +53,13 @@ interface PreviewCanvasProps {
   selectedElement?: 'none' | 'watermark' | 'title' | 'subtitle';
   setSelectedElement?: (el: 'none' | 'watermark' | 'title' | 'subtitle') => void;
   className?: string;
+  exportQuality?: ExportQuality;
 }
 
 export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   aspectRatio,
   mediaAsset,
+  exportQuality = '1080p',
   videoClips = [],
   transitionConfig,
   currentTime,
@@ -160,17 +163,18 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
   }, [mediaAsset, textConfig.mode]);
 
-  // Canvas dimensions based on aspect ratio
+  // Canvas dimensions based on aspect ratio & export quality scale
   const getCanvasDimensions = useCallback(() => {
+    const scale = exportQuality === '4k' ? 2 : exportQuality === '720p' ? 0.6667 : exportQuality === '480p' ? 0.4444 : 1;
     switch (aspectRatio) {
       case '9:16':
-        return { width: 1080, height: 1920, displayAspect: 'aspect-[9/16]' };
+        return { width: Math.round(1080 * scale), height: Math.round(1920 * scale), displayAspect: 'aspect-[9/16]' };
       case '1:1':
-        return { width: 1080, height: 1080, displayAspect: 'aspect-square' };
+        return { width: Math.round(1080 * scale), height: Math.round(1080 * scale), displayAspect: 'aspect-square' };
       case '16:9':
-        return { width: 1920, height: 1080, displayAspect: 'aspect-[16/9]' };
+        return { width: Math.round(1920 * scale), height: Math.round(1080 * scale), displayAspect: 'aspect-[16/9]' };
     }
-  }, [aspectRatio]);
+  }, [aspectRatio, exportQuality]);
 
   const { width: cWidth, height: cHeight, displayAspect } = getCanvasDimensions();
 
