@@ -2163,7 +2163,7 @@ export const App: React.FC = () => {
         isSaving={isSavingProject}
       />
 
-      {/* Screen & Game Recorder Modal (OBS Studio Style) */}
+      {/* Screen & Game Recorder Modal */}
       <ScreenRecorderModal
         isOpen={isScreenRecorderOpen}
         onClose={() => setIsScreenRecorderOpen(false)}

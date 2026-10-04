@@ -732,7 +732,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </div>
               )}
 
-              {/* Botón directo: Grabador de Pantalla y Juegos (Estilo OBS Studio) */}
+              {/* Botón directo: Grabador de Pantalla y Juegos */}
               {onOpenRecorder && (
                 <button
                   type="button"
@@ -747,7 +747,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <div className="text-xs font-bold text-white flex items-center gap-1.5">
                         <span>Grabar Pantalla o Juego</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono font-bold">
-                          OBS
+                          REC HD
                         </span>
                       </div>
                       <div className="text-[10px] text-neutral-400">
