@@ -10,7 +10,8 @@ import {
   Upload,
   Mic,
   HelpCircle,
-  Home
+  Home,
+  Radio
 } from 'lucide-react';
 import { useI18n } from '../i18n/context';
 import { LanguageSelector } from './LanguageSelector';
@@ -28,6 +29,7 @@ interface HeaderProps {
   currentProjectName?: string;
   onOpenLanding?: () => void;
   onOpenTour?: () => void;
+  onRecordClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -42,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentProjectName,
   onOpenLanding,
   onOpenTour,
+  onRecordClick,
 }) => {
   const { t } = useI18n();
 
@@ -165,6 +168,17 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Save className="w-3.5 h-3.5 text-neutral-400" />
             <span className="hidden lg:inline">{t.header.quickSave}</span>
+          </button>
+        )}
+
+        {onRecordClick && (
+          <button
+            onClick={onRecordClick}
+            className="flex items-center gap-1 sm:gap-1.5 p-2 sm:px-3 sm:py-2 bg-neutral-800/90 hover:bg-neutral-700 text-rose-300 hover:text-white text-xs font-semibold rounded-xl border border-rose-500/40 hover:border-rose-500 transition shadow-sm"
+            title={t.header.recordScreenTip}
+          >
+            <Radio className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+            <span className="hidden sm:inline font-bold">{t.header.recordScreen}</span>
           </button>
         )}
 

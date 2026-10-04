@@ -21,6 +21,7 @@ import { PreviewCanvas } from './components/PreviewCanvas';
 import { Timeline } from './components/Timeline';
 import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
+import { ScreenRecorderModal } from './components/ScreenRecorderModal';
 import { LandingPage } from './components/LandingPage';
 import { OnboardingTour } from './components/OnboardingTour';
 import { musicPlayer } from './utils/audioSynth';
@@ -180,8 +181,9 @@ export const App: React.FC = () => {
   const [selectedElement, setSelectedElement] = useState<'none' | 'watermark' | 'title' | 'subtitle'>('none');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 14. Projects Management State
+  // 14. Projects Management & Screen Recorder State
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState<boolean>(false);
+  const [isScreenRecorderOpen, setIsScreenRecorderOpen] = useState<boolean>(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [currentProjectName, setCurrentProjectName] = useState<string>('Mi Video');
   const [isSavingProject, setIsSavingProject] = useState<boolean>(false);
@@ -1895,6 +1897,7 @@ export const App: React.FC = () => {
         currentProjectName={currentProjectName}
         onOpenLanding={() => setShowLanding(true)}
         onOpenTour={() => setIsTourOpen(true)}
+        onRecordClick={() => setIsScreenRecorderOpen(true)}
       />
 
       {/* AutoSave recovery prompt banner if available on start */}
@@ -2003,6 +2006,7 @@ export const App: React.FC = () => {
           textClips={textClips}
           setTextClips={setTextClips}
           onAddTextClip={handleAddTextClip}
+          onOpenRecorder={() => setIsScreenRecorderOpen(true)}
         />
 
         {/* Center Live Stage Canvas */}
@@ -2157,6 +2161,13 @@ export const App: React.FC = () => {
         onLoadProject={handleLoadProject}
         onNewProject={handleNewProject}
         isSaving={isSavingProject}
+      />
+
+      {/* Screen & Game Recorder Modal (OBS Studio Style) */}
+      <ScreenRecorderModal
+        isOpen={isScreenRecorderOpen}
+        onClose={() => setIsScreenRecorderOpen(false)}
+        onAddVideoClip={handleAddVideoClip}
       />
     </div>
   );

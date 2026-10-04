@@ -35,7 +35,8 @@ import {
   Flame,
   Repeat,
   RefreshCw,
-  ChevronLeft
+  ChevronLeft,
+  Radio
 } from 'lucide-react';
 import { musicPlayer, createSFXBuffer, audioBufferToWavBlob, type SFXPreset } from '../utils/audioSynth';
 import { speechService } from '../utils/speechRecognition';
@@ -43,6 +44,7 @@ import { selfieSegmenter } from '../utils/segmentation';
 
 interface LeftSidebarProps {
   className?: string;
+  onOpenRecorder?: () => void;
   onToggleCollapse?: () => void;
   isCollapsed?: boolean;
   mediaAsset: MediaAsset | null;
@@ -118,6 +120,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   className,
   onToggleCollapse,
   isCollapsed: _isCollapsed,
+  onOpenRecorder,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('text');
   const [isMicListening, setIsMicListening] = useState(false);
@@ -727,6 +730,35 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     />
                   </label>
                 </div>
+              )}
+
+              {/* Botón directo: Grabador de Pantalla y Juegos (Estilo OBS Studio) */}
+              {onOpenRecorder && (
+                <button
+                  type="button"
+                  onClick={onOpenRecorder}
+                  className="w-full mt-2.5 p-3 rounded-2xl bg-gradient-to-r from-rose-950/40 via-neutral-900 to-neutral-900 border border-rose-500/40 hover:border-rose-500 text-left flex items-center justify-between group transition shadow-sm"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center flex-shrink-0 group-hover:bg-rose-600 group-hover:text-white text-rose-400 transition">
+                      <Radio className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>Grabar Pantalla o Juego</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono font-bold">
+                          OBS
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-neutral-400">
+                        Gameplay, dibujo o tutorial con webcam
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-rose-400 group-hover:translate-x-0.5 transition">
+                    →
+                  </span>
+                </button>
               )}
             </div>
 
