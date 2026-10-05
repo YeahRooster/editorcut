@@ -1031,6 +1031,39 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
       };
 
       recorder.onstop = async () => {
+        // Immediately terminate screen share, webcam and mic streams so Chrome / Windows removes the sharing bar
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach((track) => track.stop());
+          screenStreamRef.current = null;
+        }
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = null;
+        }
+        if (webcamStreamRef.current) {
+          webcamStreamRef.current.getTracks().forEach((track) => track.stop());
+          webcamStreamRef.current = null;
+        }
+        if (webcamVideoRef.current) {
+          webcamVideoRef.current.srcObject = null;
+        }
+        if (floatingWebcamVideoRef.current) {
+          floatingWebcamVideoRef.current.srcObject = null;
+        }
+        if (micStreamRef.current) {
+          micStreamRef.current.getTracks().forEach((track) => track.stop());
+          micStreamRef.current = null;
+        }
+        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+          audioCtxRef.current.close().catch(() => {});
+          audioCtxRef.current = null;
+        }
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture().catch(() => {});
+        }
+        setHasScreenStream(false);
+        setHasWebcamStream(false);
+        setAudioLevel(0);
+
         const rawBlob = new Blob(recordedChunksRef.current, { type: selectedMime });
         const targetFormat = formatRef.current;
 
