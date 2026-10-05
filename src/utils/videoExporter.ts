@@ -7,6 +7,7 @@ import {
   WebMInputFormat,
   Mp4OutputFormat,
   Conversion,
+  getEncodableAudioCodecs,
 } from 'mediabunny';
 
 export class VideoExporter {
@@ -115,7 +116,21 @@ export class VideoExporter {
             target: new BufferTarget(),
           });
 
-          const conversion = await Conversion.init({ input, output });
+          let audioConfig: { codec: 'aac' } | undefined = undefined;
+          try {
+            const encodable = await getEncodableAudioCodecs();
+            if (encodable.includes('aac')) {
+              audioConfig = { codec: 'aac' };
+            }
+          } catch {
+            audioConfig = { codec: 'aac' };
+          }
+
+          const conversion = await Conversion.init({
+            input,
+            output,
+            audio: audioConfig,
+          });
           await conversion.execute();
 
           const finalBuffer = output.target.buffer;

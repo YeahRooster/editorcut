@@ -18,7 +18,9 @@ import {
   Radio,
   Crop,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Move,
+  ExternalLink,
 } from 'lucide-react';
 import { useI18n } from '../i18n/context';
 import {
@@ -30,6 +32,7 @@ import {
   WebMInputFormat,
   Mp4OutputFormat,
   Conversion,
+  getEncodableAudioCodecs,
 } from 'mediabunny';
 
 interface ScreenRecorderModalProps {
@@ -40,10 +43,15 @@ interface ScreenRecorderModalProps {
 
 type RecordMode = 'screen_only' | 'screen_cam' | 'cam_only';
 type AreaMode = 'fullscreen' | 'custom' | '16:9' | '9:16' | '1:1';
-type PipPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+type PipPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'custom';
 type PipShape = 'rounded' | 'circle';
 type PipSize = 'sm' | 'md' | 'lg';
 type RecordingStatus = 'idle' | 'countdown' | 'recording' | 'paused' | 'review';
+
+export interface PipCoord {
+  x: number; // 0 to 1 normalized center
+  y: number; // 0 to 1 normalized center
+}
 
 interface CropRect {
   x: number;      // 0 to 1 (normalized)
@@ -69,6 +77,11 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   const [isAdjustingCrop, setIsAdjustingCrop] = useState<boolean>(false);
 
   const [pipPosition, setPipPosition] = useState<PipPosition>('bottom-right');
+  const [pipCoord, setPipCoord] = useState<PipCoord>({ x: 0.88, y: 0.82 });
+  const pipCoordRef = useRef<PipCoord>({ x: 0.88, y: 0.82 });
+  const [isDraggingPip, setIsDraggingPip] = useState<boolean>(false);
+  const floatingWebcamVideoRef = useRef<HTMLVideoElement | null>(null);
+
   const [pipShape, setPipShape] = useState<PipShape>('circle');
   const [pipSize, setPipSize] = useState<PipSize>('md');
   const [fps, setFps] = useState<60 | 30>(60);
@@ -111,7 +124,7 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   const timerIntervalRef = useRef<number | null>(null);
 
   // Crop interaction dragging state
-  const dragModeRef = useRef<'none' | 'move' | 'nw' | 'ne' | 'se' | 'sw' | 'new'>('none');
+  const dragModeRef = useRef<'none' | 'move' | 'nw' | 'ne' | 'se' | 'sw' | 'new' | 'pip'>('none');
   const dragStartRef = useRef<{ x: number; y: number; rect: CropRect }>({
     x: 0,
     y: 0,
@@ -430,21 +443,15 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
 
               const pipW = Math.round(outW * pipScale);
               const pipH = pipShape === 'circle' ? pipW : Math.round(pipW * (9 / 16));
-              const margin = Math.round(outW * 0.025);
 
-              let pipX = outW - pipW - margin;
-              let pipY = outH - pipH - margin;
+              // Use normalized real-time draggable coordinates
+              const normX = pipCoordRef.current.x;
+              const normY = pipCoordRef.current.y;
+              let pipX = Math.round(normX * outW - pipW / 2);
+              let pipY = Math.round(normY * outH - pipH / 2);
 
-              if (pipPosition === 'bottom-left') {
-                pipX = margin;
-                pipY = outH - pipH - margin;
-              } else if (pipPosition === 'top-right') {
-                pipX = outW - pipW - margin;
-                pipY = margin;
-              } else if (pipPosition === 'top-left') {
-                pipX = margin;
-                pipY = margin;
-              }
+              pipX = Math.max(10, Math.min(outW - pipW - 10, pipX));
+              pipY = Math.max(10, Math.min(outH - pipH - 10, pipY));
 
               rCtx.save();
               if (pipShape === 'circle') {
@@ -452,6 +459,10 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 rCtx.beginPath();
                 rCtx.arc(pipX + r, pipY + r, r, 0, Math.PI * 2);
                 rCtx.clip();
+
+                // Mirror webcam horizontally for natural reflection
+                rCtx.translate(pipX + pipW, pipY);
+                rCtx.scale(-1, 1);
 
                 const vAspect = webcamVid.videoWidth / webcamVid.videoHeight;
                 let srcW = webcamVid.videoWidth;
@@ -465,7 +476,7 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                   srcH = webcamVid.videoWidth;
                   srcY = (webcamVid.videoHeight - srcH) / 2;
                 }
-                rCtx.drawImage(webcamVid, srcX, srcY, srcW, srcH, pipX, pipY, pipW, pipW);
+                rCtx.drawImage(webcamVid, srcX, srcY, srcW, srcH, 0, 0, pipW, pipW);
                 rCtx.restore();
 
                 rCtx.beginPath();
@@ -478,7 +489,11 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 if (rCtx.roundRect) rCtx.roundRect(pipX, pipY, pipW, pipH, 16);
                 else rCtx.rect(pipX, pipY, pipW, pipH);
                 rCtx.clip();
-                rCtx.drawImage(webcamVid, pipX, pipY, pipW, pipH);
+
+                // Mirror webcam horizontally
+                rCtx.translate(pipX + pipW, pipY);
+                rCtx.scale(-1, 1);
+                rCtx.drawImage(webcamVid, 0, 0, pipW, pipH);
                 rCtx.restore();
 
                 rCtx.beginPath();
@@ -592,21 +607,15 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
 
               const pipW = Math.round(sW * pipScale);
               const pipH = pipShape === 'circle' ? pipW : Math.round(pipW * (9 / 16));
-              const margin = Math.round(sW * 0.025);
 
-              let pipX = sW - pipW - margin;
-              let pipY = sH - pipH - margin;
+              // Use normalized real-time draggable coordinates
+              const normX = pipCoordRef.current.x;
+              const normY = pipCoordRef.current.y;
+              let pipX = Math.round(normX * sW - pipW / 2);
+              let pipY = Math.round(normY * sH - pipH / 2);
 
-              if (pipPosition === 'bottom-left') {
-                pipX = margin;
-                pipY = sH - pipH - margin;
-              } else if (pipPosition === 'top-right') {
-                pipX = sW - pipW - margin;
-                pipY = margin;
-              } else if (pipPosition === 'top-left') {
-                pipX = margin;
-                pipY = margin;
-              }
+              pipX = Math.max(10, Math.min(sW - pipW - 10, pipX));
+              pipY = Math.max(10, Math.min(sH - pipH - 10, pipY));
 
               pCtx.save();
               if (pipShape === 'circle') {
@@ -614,7 +623,24 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 pCtx.beginPath();
                 pCtx.arc(pipX + r, pipY + r, r, 0, Math.PI * 2);
                 pCtx.clip();
-                pCtx.drawImage(webcamVid, pipX, pipY, pipW, pipW);
+
+                // Mirror webcam horizontally for natural reflection
+                pCtx.translate(pipX + pipW, pipY);
+                pCtx.scale(-1, 1);
+
+                const vAspect = webcamVid.videoWidth / webcamVid.videoHeight;
+                let srcW = webcamVid.videoWidth;
+                let srcH = webcamVid.videoHeight;
+                let srcX = 0;
+                let srcY = 0;
+                if (vAspect > 1) {
+                  srcW = webcamVid.videoHeight;
+                  srcX = (webcamVid.videoWidth - srcW) / 2;
+                } else {
+                  srcH = webcamVid.videoWidth;
+                  srcY = (webcamVid.videoHeight - srcH) / 2;
+                }
+                pCtx.drawImage(webcamVid, srcX, srcY, srcW, srcH, 0, 0, pipW, pipW);
                 pCtx.restore();
 
                 pCtx.beginPath();
@@ -627,7 +653,11 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 if (pCtx.roundRect) pCtx.roundRect(pipX, pipY, pipW, pipH, 16);
                 else pCtx.rect(pipX, pipY, pipW, pipH);
                 pCtx.clip();
-                pCtx.drawImage(webcamVid, pipX, pipY, pipW, pipH);
+
+                // Mirror webcam horizontally
+                pCtx.translate(pipX + pipW, pipY);
+                pCtx.scale(-1, 1);
+                pCtx.drawImage(webcamVid, 0, 0, pipW, pipH);
                 pCtx.restore();
 
                 pCtx.beginPath();
@@ -675,10 +705,98 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
     }
   }, [isOpen, mode, includeMic, initWebcam, initScreen, initMic]);
 
-  // Sync formatRef
+  // Sync formatRef and pipCoordRef
   useEffect(() => {
     formatRef.current = format;
   }, [format]);
+
+  useEffect(() => {
+    pipCoordRef.current = pipCoord;
+  }, [pipCoord]);
+
+  // Connect live webcam to floating preview element
+  useEffect(() => {
+    if (floatingWebcamVideoRef.current && webcamStreamRef.current) {
+      floatingWebcamVideoRef.current.srcObject = webcamStreamRef.current;
+      floatingWebcamVideoRef.current.play().catch(() => {});
+    }
+  }, [hasWebcamStream, isMinimized, status, mode]);
+
+  // Global mouse & touch listeners for dragging the floating webcam window
+  useEffect(() => {
+    if (!isDraggingPip) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = Math.max(0.06, Math.min(0.94, e.clientX / window.innerWidth));
+      const y = Math.max(0.06, Math.min(0.94, e.clientY / window.innerHeight));
+      setPipCoord({ x, y });
+      setPipPosition('custom');
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingPip(false);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const x = Math.max(0.06, Math.min(0.94, touch.clientX / window.innerWidth));
+        const y = Math.max(0.06, Math.min(0.94, touch.clientY / window.innerHeight));
+        setPipCoord({ x, y });
+        setPipPosition('custom');
+      }
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingPip(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDraggingPip]);
+
+  // System Picture-in-Picture window (Always on Top over games / desktop)
+  const toggleSystemPip = async () => {
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (floatingWebcamVideoRef.current) {
+        await floatingWebcamVideoRef.current.requestPictureInPicture();
+      } else if (webcamVideoRef.current) {
+        await webcamVideoRef.current.requestPictureInPicture();
+      }
+    } catch (err) {
+      console.warn('System Picture in Picture not available or rejected:', err);
+    }
+  };
+
+  // Helper to select preset corner positions
+  const handleSelectPipPosition = (pos: PipPosition) => {
+    setPipPosition(pos);
+    if (pos === 'bottom-right') setPipCoord({ x: 0.88, y: 0.82 });
+    else if (pos === 'bottom-left') setPipCoord({ x: 0.12, y: 0.82 });
+    else if (pos === 'top-right') setPipCoord({ x: 0.88, y: 0.18 });
+    else if (pos === 'top-left') setPipCoord({ x: 0.12, y: 0.18 });
+  };
+
+  const handlePipStartDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingPip(true);
+  };
+
+  const handlePipTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setIsDraggingPip(true);
+  };
 
   // Clean up on modal close
   useEffect(() => {
@@ -695,15 +813,25 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
     }
   }, [isOpen, stopAllMediaStreams, recordedUrl]);
 
-  // Interactive Crop Dragging & Resizing Handlers
+  // Interactive Crop & Facecam Dragging Handlers
   const handlePreviewMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (areaMode === 'fullscreen' || status === 'recording' || status === 'paused') return;
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left) / rect.width;
     const mouseY = (e.clientY - rect.top) / rect.height;
+
+    // Check if clicking on the webcam Facecam in screen_cam mode
+    if (mode === 'screen_cam') {
+      const distToPip = Math.hypot(mouseX - pipCoord.x, mouseY - pipCoord.y);
+      if (distToPip < 0.14) {
+        dragModeRef.current = 'pip';
+        return;
+      }
+    }
+
+    if (areaMode === 'fullscreen' || status === 'recording' || status === 'paused') return;
 
     const { x, y, width, height } = cropRect;
     const tol = 0.05; // Hit tolerance
@@ -732,13 +860,23 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   };
 
   const handlePreviewMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (dragModeRef.current === 'none' || areaMode === 'fullscreen') return;
+    if (dragModeRef.current === 'none') return;
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const curX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const curY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+    if (dragModeRef.current === 'pip') {
+      const newX = Math.max(0.06, Math.min(0.94, curX));
+      const newY = Math.max(0.06, Math.min(0.94, curY));
+      setPipCoord({ x: newX, y: newY });
+      setPipPosition('custom');
+      return;
+    }
+
+    if (areaMode === 'fullscreen') return;
 
     const dx = curX - dragStartRef.current.x;
     const dy = curY - dragStartRef.current.y;
@@ -861,14 +999,24 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
 
       const finalStream = new MediaStream(combinedTracks);
 
-      // Choose supported MIME type
-      const mimeTypes = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm',
-        'video/mp4',
-      ];
-      const selectedMime = mimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+      // Choose supported MIME type prioritizing MP4/H264/AAC when MP4 format is active
+      const preferredMimes = formatRef.current === 'mp4'
+        ? [
+            'video/mp4;codecs=avc1,mp4a.40.2',
+            'video/mp4;codecs=avc1',
+            'video/mp4',
+            'video/webm;codecs=h264,opus',
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm',
+          ]
+        : [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm',
+            'video/mp4',
+          ];
+      const selectedMime = preferredMimes.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
 
       recordedChunksRef.current = [];
       const recorder = new MediaRecorder(finalStream, {
@@ -899,7 +1047,23 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
               target: new BufferTarget(),
             });
 
-            const conversion = await Conversion.init({ input, output });
+            // Universal Audio: Ensure MP4 contains AAC audio (mp4a.40.2)
+            // Windows Media Player, QuickTime, iOS, TVs and WhatsApp require AAC in MP4
+            let audioConfig: { codec: 'aac' } | undefined = undefined;
+            try {
+              const encodable = await getEncodableAudioCodecs();
+              if (encodable.includes('aac')) {
+                audioConfig = { codec: 'aac' };
+              }
+            } catch {
+              audioConfig = { codec: 'aac' };
+            }
+
+            const conversion = await Conversion.init({
+              input,
+              output,
+              audio: audioConfig,
+            });
             await conversion.execute();
 
             const finalBuffer = output.target.buffer;
@@ -1020,6 +1184,118 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
       <canvas ref={recordCanvasRef} className="hidden" />
 
       {/* ========================================================================= */}
+      {/* FLOATING DRAGGABLE WEBCAM WIDGET (LIVE FACECAM OVERLAY)                   */}
+      {/* Visible in screen_cam mode when minimized or recording                    */}
+      {/* ========================================================================= */}
+      {mode === 'screen_cam' && (isMinimized || status === 'recording' || status === 'paused') && (
+        <div
+          style={{
+            position: 'fixed',
+            left: `${pipCoord.x * 100}%`,
+            top: `${pipCoord.y * 100}%`,
+            transform: 'translate(-50%, -50%)',
+            zIndex: 9999,
+          }}
+          className="group select-none touch-none animate-in fade-in zoom-in-95 duration-200"
+        >
+          {/* Draggable Camera Container */}
+          <div
+            onMouseDown={handlePipStartDrag}
+            onTouchStart={handlePipTouchStart}
+            className={`relative cursor-grab active:cursor-grabbing transition-all duration-150 border-4 border-rose-500 bg-neutral-950 shadow-2xl shadow-black/80 hover:border-rose-400 ${
+              pipShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
+            } ${
+              pipSize === 'sm'
+                ? pipShape === 'circle' ? 'w-32 h-32' : 'w-44 h-28'
+                : pipSize === 'lg'
+                ? pipShape === 'circle' ? 'w-56 h-56' : 'w-72 h-44'
+                : pipShape === 'circle' ? 'w-44 h-44' : 'w-60 h-36'
+            } overflow-hidden`}
+          >
+            <video
+              ref={floatingWebcamVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover scale-x-[-1] pointer-events-none"
+            />
+
+            {/* If webcam stream not ready */}
+            {!hasWebcamStream && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900/90 p-2 text-center text-neutral-400 pointer-events-none">
+                <Camera className="w-6 h-6 text-rose-500 mb-1 animate-pulse" />
+                <span className="text-[10px] font-bold">Iniciando cámara...</span>
+              </div>
+            )}
+
+            {/* Recording Live Indicator */}
+            {status === 'recording' && (
+              <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-600/90 text-white font-mono text-[9px] font-black uppercase tracking-wider backdrop-blur-md shadow-md shadow-black/60 pointer-events-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <span>REC</span>
+              </div>
+            )}
+
+            {/* Hover Instruction Overlay */}
+            <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 text-center pointer-events-none">
+              <div className="p-1.5 rounded-full bg-rose-600/90 text-white mb-1 shadow-lg shadow-black">
+                <Move className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {t.recorder.pipDragTip || 'Arrastra para mover la cámara'}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Floating Controls Bar on Hover */}
+          <div className="absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1 bg-neutral-900/95 backdrop-blur-md border border-neutral-700/80 px-2 py-1 rounded-xl shadow-2xl shadow-black text-white text-[10px] whitespace-nowrap z-30 pointer-events-auto">
+            {/* Shape toggle */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPipShape(pipShape === 'circle' ? 'rounded' : 'circle');
+              }}
+              className="p-1 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition"
+              title="Cambiar forma (Círculo / Rectángulo)"
+            >
+              {pipShape === 'circle' ? '▢' : '○'}
+            </button>
+
+            <span className="w-px h-3 bg-neutral-700 mx-0.5" />
+
+            {/* Size cycle */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPipSize(pipSize === 'sm' ? 'md' : pipSize === 'md' ? 'lg' : 'sm');
+              }}
+              className="px-1.5 py-0.5 hover:bg-neutral-800 rounded font-mono font-bold text-neutral-300 hover:text-white transition"
+              title="Cambiar tamaño (S / M / L)"
+            >
+              {pipSize.toUpperCase()}
+            </button>
+
+            {/* System Picture-in-Picture Toggle */}
+            <span className="w-px h-3 bg-neutral-700 mx-0.5" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSystemPip();
+              }}
+              className="px-1.5 py-0.5 hover:bg-neutral-800 rounded text-neutral-300 hover:text-rose-400 transition flex items-center gap-1"
+              title={t.recorder.pipSystemWindow || 'Flotar sobre otras apps (PiP)'}
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span className="text-[9px]">Flotar fuera</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MINIMIZED FLOATING RECORDING BAR (NON-BLOCKING OVERLAY)                   */}
       {/* ========================================================================= */}
       {isMinimized && (status === 'recording' || status === 'paused' || status === 'idle') ? (
@@ -1055,6 +1331,17 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
             <Square className="w-3.5 h-3.5 fill-white" />
             <span>{t.recorder.stopBtn}</span>
           </button>
+
+          {/* Camera Pip Toggle if screen_cam */}
+          {mode === 'screen_cam' && (
+            <button
+              onClick={toggleSystemPip}
+              className="p-1.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-rose-400 hover:text-white transition"
+              title={t.recorder.pipSystemWindow || 'Flotar sobre otras apps (PiP)'}
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+          )}
 
           <button
             onClick={() => setIsMinimized(false)}
@@ -1442,38 +1729,59 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
 
                         <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-lg p-0.5 gap-0.5">
                           <button
-                            onClick={() => setPipPosition('bottom-right')}
+                            type="button"
+                            onClick={() => handleSelectPipPosition('bottom-right')}
                             className={`px-2 py-1 rounded text-[10px] font-semibold transition ${
                               pipPosition === 'bottom-right' ? 'bg-rose-600 text-white' : 'text-neutral-400 hover:text-white'
                             }`}
                           >
-                            ↘ Abajo Der
+                            ↘ {t.recorder.bottomRight || 'Abajo Der'}
                           </button>
                           <button
-                            onClick={() => setPipPosition('bottom-left')}
+                            type="button"
+                            onClick={() => handleSelectPipPosition('bottom-left')}
                             className={`px-2 py-1 rounded text-[10px] font-semibold transition ${
                               pipPosition === 'bottom-left' ? 'bg-rose-600 text-white' : 'text-neutral-400 hover:text-white'
                             }`}
                           >
-                            ↙ Abajo Izq
+                            ↙ {t.recorder.bottomLeft || 'Abajo Izq'}
                           </button>
                           <button
-                            onClick={() => setPipPosition('top-right')}
+                            type="button"
+                            onClick={() => handleSelectPipPosition('top-right')}
                             className={`px-2 py-1 rounded text-[10px] font-semibold transition ${
                               pipPosition === 'top-right' ? 'bg-rose-600 text-white' : 'text-neutral-400 hover:text-white'
                             }`}
                           >
-                            ↗ Arriba Der
+                            ↗ {t.recorder.topRight || 'Arriba Der'}
                           </button>
                           <button
-                            onClick={() => setPipPosition('top-left')}
+                            type="button"
+                            onClick={() => handleSelectPipPosition('top-left')}
                             className={`px-2 py-1 rounded text-[10px] font-semibold transition ${
                               pipPosition === 'top-left' ? 'bg-rose-600 text-white' : 'text-neutral-400 hover:text-white'
                             }`}
                           >
-                            ↖ Arriba Izq
+                            ↖ {t.recorder.topLeft || 'Arriba Izq'}
                           </button>
+                          {pipPosition === 'custom' && (
+                            <span className="px-2 py-1 rounded text-[10px] font-bold bg-rose-600 text-white flex items-center gap-1 shadow-sm">
+                              <Move className="w-3 h-3" />
+                              <span>{t.recorder.customPosition || 'Libre'}</span>
+                            </span>
+                          )}
                         </div>
+
+                        {/* System PiP button */}
+                        <button
+                          type="button"
+                          onClick={toggleSystemPip}
+                          className="px-2 py-1 rounded text-[10px] font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-rose-400 transition flex items-center gap-1"
+                          title={t.recorder.pipSystemWindow || 'Flotar sobre otras apps (PiP)'}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>PiP</span>
+                        </button>
 
                         {/* Shape */}
                         <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-lg p-0.5 gap-0.5">
