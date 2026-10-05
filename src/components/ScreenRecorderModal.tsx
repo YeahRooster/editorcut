@@ -434,76 +434,6 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 rCtx.drawImage(screenVid, 0, 0, outW, outH);
               }
             }
-
-            // Draw Webcam PiP
-            if (mode === 'screen_cam' && webcamVid && webcamVid.readyState >= 2) {
-              let pipScale = 0.24;
-              if (pipSize === 'sm') pipScale = 0.18;
-              if (pipSize === 'lg') pipScale = 0.32;
-
-              const pipW = Math.round(outW * pipScale);
-              const pipH = pipShape === 'circle' ? pipW : Math.round(pipW * (9 / 16));
-
-              // Use normalized real-time draggable coordinates
-              const normX = pipCoordRef.current.x;
-              const normY = pipCoordRef.current.y;
-              let pipX = Math.round(normX * outW - pipW / 2);
-              let pipY = Math.round(normY * outH - pipH / 2);
-
-              pipX = Math.max(10, Math.min(outW - pipW - 10, pipX));
-              pipY = Math.max(10, Math.min(outH - pipH - 10, pipY));
-
-              rCtx.save();
-              if (pipShape === 'circle') {
-                const r = pipW / 2;
-                rCtx.beginPath();
-                rCtx.arc(pipX + r, pipY + r, r, 0, Math.PI * 2);
-                rCtx.clip();
-
-                // Mirror webcam horizontally for natural reflection
-                rCtx.translate(pipX + pipW, pipY);
-                rCtx.scale(-1, 1);
-
-                const vAspect = webcamVid.videoWidth / webcamVid.videoHeight;
-                let srcW = webcamVid.videoWidth;
-                let srcH = webcamVid.videoHeight;
-                let srcX = 0;
-                let srcY = 0;
-                if (vAspect > 1) {
-                  srcW = webcamVid.videoHeight;
-                  srcX = (webcamVid.videoWidth - srcW) / 2;
-                } else {
-                  srcH = webcamVid.videoWidth;
-                  srcY = (webcamVid.videoHeight - srcH) / 2;
-                }
-                rCtx.drawImage(webcamVid, srcX, srcY, srcW, srcH, 0, 0, pipW, pipW);
-                rCtx.restore();
-
-                rCtx.beginPath();
-                rCtx.arc(pipX + r, pipY + r, r, 0, Math.PI * 2);
-                rCtx.lineWidth = 4;
-                rCtx.strokeStyle = '#e11d48';
-                rCtx.stroke();
-              } else {
-                rCtx.beginPath();
-                if (rCtx.roundRect) rCtx.roundRect(pipX, pipY, pipW, pipH, 16);
-                else rCtx.rect(pipX, pipY, pipW, pipH);
-                rCtx.clip();
-
-                // Mirror webcam horizontally
-                rCtx.translate(pipX + pipW, pipY);
-                rCtx.scale(-1, 1);
-                rCtx.drawImage(webcamVid, 0, 0, pipW, pipH);
-                rCtx.restore();
-
-                rCtx.beginPath();
-                if (rCtx.roundRect) rCtx.roundRect(pipX, pipY, pipW, pipH, 16);
-                else rCtx.rect(pipX, pipY, pipW, pipH);
-                rCtx.lineWidth = 4;
-                rCtx.strokeStyle = '#e11d48';
-                rCtx.stroke();
-              }
-            }
           }
         }
       }
@@ -601,9 +531,9 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
 
             // Draw PiP overlay on preview
             if (mode === 'screen_cam' && webcamVid && webcamVid.readyState >= 2) {
-              let pipScale = 0.24;
-              if (pipSize === 'sm') pipScale = 0.18;
-              if (pipSize === 'lg') pipScale = 0.32;
+              let pipScale = 0.15;
+              if (pipSize === 'sm') pipScale = 0.11;
+              if (pipSize === 'lg') pipScale = 0.20;
 
               const pipW = Math.round(sW * pipScale);
               const pipH = pipShape === 'circle' ? pipW : Math.round(pipW * (9 / 16));
@@ -941,10 +871,10 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
   const startActualRecording = async () => {
     try {
       let finalVideoTrack: MediaStreamTrack | null = null;
-      const isDirectScreen = mode === 'screen_only' && areaMode === 'fullscreen';
+      const isDirectScreen = (mode === 'screen_only' || mode === 'screen_cam') && areaMode === 'fullscreen';
 
-      // CRITICAL FIX: If screen-only full screen, record native stream track directly!
-      // This eliminates browser background tab canvas throttling completely!
+      // CRITICAL FIX: If screen-only or screen+cam in full screen, record native stream track directly!
+      // This eliminates duplicate overlays, provides native 60 FPS and prevents background throttling!
       if (isDirectScreen && screenStreamRef.current) {
         finalVideoTrack = screenStreamRef.current.getVideoTracks()[0];
       } else if (mode === 'cam_only' && webcamStreamRef.current) {
@@ -1239,10 +1169,10 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
               pipShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
             } ${
               pipSize === 'sm'
-                ? pipShape === 'circle' ? 'w-32 h-32' : 'w-44 h-28'
+                ? pipShape === 'circle' ? 'w-36 h-36' : 'w-52 h-32'
                 : pipSize === 'lg'
-                ? pipShape === 'circle' ? 'w-56 h-56' : 'w-72 h-44'
-                : pipShape === 'circle' ? 'w-44 h-44' : 'w-60 h-36'
+                ? pipShape === 'circle' ? 'w-64 h-64' : 'w-80 h-48'
+                : pipShape === 'circle' ? 'w-48 h-48' : 'w-64 h-38'
             } overflow-hidden`}
           >
             <video
@@ -1260,24 +1190,6 @@ export const ScreenRecorderModal: React.FC<ScreenRecorderModalProps> = ({
                 <span className="text-[10px] font-bold">Iniciando cámara...</span>
               </div>
             )}
-
-            {/* Recording Live Indicator */}
-            {status === 'recording' && (
-              <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-600/90 text-white font-mono text-[9px] font-black uppercase tracking-wider backdrop-blur-md shadow-md shadow-black/60 pointer-events-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                <span>REC</span>
-              </div>
-            )}
-
-            {/* Hover Instruction Overlay */}
-            <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 text-center pointer-events-none">
-              <div className="p-1.5 rounded-full bg-rose-600/90 text-white mb-1 shadow-lg shadow-black">
-                <Move className="w-4 h-4" />
-              </div>
-              <span className="text-[10px] font-bold text-white drop-shadow-md">
-                {t.recorder.pipDragTip || 'Arrastra para mover la cámara'}
-              </span>
-            </div>
           </div>
 
           {/* Quick Floating Controls Bar on Hover */}
