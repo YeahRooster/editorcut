@@ -22,6 +22,7 @@ import { Timeline } from './components/Timeline';
 import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
 import { ScreenRecorderModal } from './components/ScreenRecorderModal';
+import { SpeeddrawModal } from './components/SpeeddrawModal';
 import { LandingPage } from './components/LandingPage';
 import { OnboardingTour } from './components/OnboardingTour';
 import { musicPlayer } from './utils/audioSynth';
@@ -184,6 +185,7 @@ export const App: React.FC = () => {
   // 14. Projects Management & Screen Recorder State
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState<boolean>(false);
   const [isScreenRecorderOpen, setIsScreenRecorderOpen] = useState<boolean>(false);
+  const [isSpeeddrawModalOpen, setIsSpeeddrawModalOpen] = useState<boolean>(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [currentProjectName, setCurrentProjectName] = useState<string>('Mi Video');
   const [isSavingProject, setIsSavingProject] = useState<boolean>(false);
@@ -484,14 +486,19 @@ export const App: React.FC = () => {
       if (elToPlay) {
         const clipStart = targetClip ? targetClip.start : 0;
         const clipTrim = targetClip ? (targetClip.trimStart || 0) : 0;
-        const relTime = clipTrim + Math.max(0, startTime - clipStart);
+        const clipSpeed = (targetClip && targetClip.speed) || 1;
+        const relTime = clipTrim + Math.max(0, (startTime - clipStart) * clipSpeed);
         if (Math.abs(elToPlay.currentTime - relTime) > 0.08) {
           try {
             elToPlay.currentTime = relTime;
           } catch (e) {}
         }
-        elToPlay.volume = isVideoMuted ? 0 : Math.min(1.0, videoVolume);
-        elToPlay.muted = isVideoMuted;
+        try {
+          elToPlay.playbackRate = Math.min(16.0, Math.max(0.25, clipSpeed));
+        } catch (e) {}
+        const clipVol = targetClip?.volume !== undefined ? targetClip.volume : videoVolume;
+        elToPlay.volume = isVideoMuted ? 0 : Math.min(1.0, clipVol);
+        elToPlay.muted = isVideoMuted || clipVol === 0;
         elToPlay.play().catch(console.error);
         if (videoRef) {
           videoRef.current = elToPlay;
@@ -577,7 +584,8 @@ export const App: React.FC = () => {
     if (elToSeek) {
       const clipStart = targetClip ? targetClip.start : 0;
       const clipTrim = targetClip ? (targetClip.trimStart || 0) : 0;
-      const relTime = clipTrim + Math.max(0, time - clipStart);
+      const clipSpeed = (targetClip && targetClip.speed) || 1;
+      const relTime = clipTrim + Math.max(0, (time - clipStart) * clipSpeed);
       try {
         elToSeek.currentTime = relTime;
       } catch (e) {}
@@ -1109,22 +1117,24 @@ export const App: React.FC = () => {
       videoClips.find((c) => splitTime > c.start + 0.1 && splitTime < c.start + c.duration - 0.1);
 
     if (targetClip) {
+      const clipSpeed = targetClip.speed || 1;
       const firstDur = splitTime - targetClip.start;
       const secondDur = targetClip.duration - firstDur;
       const initialTrim = targetClip.trimStart || 0;
+      const sourceElapsed = firstDur * clipSpeed;
       const clip1: VideoClip = {
         ...targetClip,
         duration: firstDur,
         trimStart: initialTrim,
-        trimEnd: initialTrim + firstDur,
+        trimEnd: initialTrim + sourceElapsed,
       };
       const clip2: VideoClip = {
         ...targetClip,
         id: 'clip-' + Date.now() + '-split',
         start: splitTime,
         duration: secondDur,
-        trimStart: initialTrim + firstDur,
-        trimEnd: targetClip.trimEnd ?? (initialTrim + targetClip.duration),
+        trimStart: initialTrim + sourceElapsed,
+        trimEnd: targetClip.trimEnd ?? (initialTrim + targetClip.duration * clipSpeed),
       };
       setVideoClips((prev) => prev.flatMap((c) => (c.id === targetClip.id ? [clip1, clip2] : [c])));
       setToastMessage(`✂️ Video cortado en ${splitTime.toFixed(1)}s`);
@@ -1133,6 +1143,165 @@ export const App: React.FC = () => {
       setToastMessage('✂️ Posiciona la línea de tiempo dentro de un clip para cortar');
       setTimeout(() => setToastMessage(null), 2500);
     }
+  };
+
+  // Adjust playback speed on a specific video clip
+  const handleSetClipSpeed = (clipId: string, newSpeed: number) => {
+    setVideoClips((prev) => {
+      const clipIdx = prev.findIndex((c) => c.id === clipId);
+      if (clipIdx === -1) return prev;
+      const target = prev[clipIdx];
+      const currentSpeed = target.speed || 1;
+      const trimStart = target.trimStart || 0;
+      const sourceDur =
+        target.trimEnd !== undefined
+          ? target.trimEnd - trimStart
+          : target.duration * currentSpeed;
+      const newDuration = Math.max(0.1, sourceDur / newSpeed);
+
+      const updatedTarget: VideoClip = {
+        ...target,
+        speed: newSpeed,
+        duration: newDuration,
+        trimStart,
+        trimEnd: trimStart + sourceDur,
+      };
+
+      const newClips = [...prev];
+      newClips[clipIdx] = updatedTarget;
+
+      // Ripple recalculate start positions sequentially so there are no gaps
+      let acc = 0;
+      return newClips.map((c) => {
+        const updated = { ...c, start: acc };
+        acc += c.duration;
+        return updated;
+      });
+    });
+    setToastMessage(`⚡ Velocidad ajustada a ${newSpeed}x`);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  // Apply speeddraw / speed acceleration to a specific time range [rangeStart, rangeEnd]
+  const handleApplySpeeddrawToRange = (
+    rangeStart: number,
+    rangeEnd: number,
+    targetSpeed: number,
+    muteAudio: boolean
+  ) => {
+    if (rangeEnd <= rangeStart + 0.1) {
+      setToastMessage('⚠️ El tiempo final debe ser mayor que el inicial');
+      setTimeout(() => setToastMessage(null), 2500);
+      return;
+    }
+
+    setVideoClips((prev) => {
+      const clips =
+        prev.length > 0
+          ? [...prev]
+          : mediaAsset && mediaAsset.type === 'video'
+          ? [
+              {
+                id: mediaAsset.id,
+                name: mediaAsset.name,
+                url: mediaAsset.url,
+                duration: mediaAsset.duration,
+                start: 0,
+                file: mediaAsset.file,
+                trimStart: 0,
+                trimEnd: mediaAsset.duration,
+                speed: 1,
+              } as VideoClip,
+            ]
+          : [];
+
+      if (clips.length === 0) return prev;
+
+      // Find the clip covering rangeStart
+      const targetClipIdx = clips.findIndex(
+        (c) => rangeStart >= c.start - 0.05 && rangeStart < c.start + c.duration + 0.05
+      );
+      if (targetClipIdx === -1) return prev;
+
+      const targetClip = clips[targetClipIdx];
+      const clipStart = targetClip.start;
+      const clipDur = targetClip.duration;
+      const clipSpeed = targetClip.speed || 1;
+      const initialTrim = targetClip.trimStart || 0;
+      const sourceTotal =
+        targetClip.trimEnd !== undefined
+          ? targetClip.trimEnd - initialTrim
+          : clipDur * clipSpeed;
+
+      const localStart = Math.max(0, rangeStart - clipStart);
+      const localEnd = Math.min(clipDur, rangeEnd - clipStart);
+
+      if (localEnd <= localStart + 0.05) return prev;
+
+      const newClipsForTarget: VideoClip[] = [];
+
+      // Part 1: Before range
+      if (localStart > 0.08) {
+        const sourcePart1 = localStart * clipSpeed;
+        newClipsForTarget.push({
+          ...targetClip,
+          id: targetClip.id + '-part1',
+          duration: localStart,
+          trimStart: initialTrim,
+          trimEnd: initialTrim + sourcePart1,
+          speed: clipSpeed,
+        });
+      }
+
+      // Part 2: The Accelerated Speeddraw section
+      const sourceSpeeddraw = (localEnd - localStart) * clipSpeed;
+      const newSpeeddrawDuration = Math.max(0.1, sourceSpeeddraw / targetSpeed);
+      const trimStartSpeeddraw = initialTrim + localStart * clipSpeed;
+      newClipsForTarget.push({
+        ...targetClip,
+        id: 'clip-' + Date.now() + '-speeddraw',
+        name: `${targetClip.name.replace(/\s*\(⚡.*?\)/g, '')} (⚡ ${targetSpeed}x)`,
+        duration: newSpeeddrawDuration,
+        trimStart: trimStartSpeeddraw,
+        trimEnd: trimStartSpeeddraw + sourceSpeeddraw,
+        speed: targetSpeed,
+        volume: muteAudio ? 0 : targetClip.volume,
+      });
+
+      // Part 3: After range
+      if (localEnd < clipDur - 0.08) {
+        const trimStartPart3 = trimStartSpeeddraw + sourceSpeeddraw;
+        newClipsForTarget.push({
+          ...targetClip,
+          id: targetClip.id + '-part3',
+          duration: clipDur - localEnd,
+          trimStart: trimStartPart3,
+          trimEnd: initialTrim + sourceTotal,
+          speed: clipSpeed,
+        });
+      }
+
+      const merged = [
+        ...clips.slice(0, targetClipIdx),
+        ...newClipsForTarget,
+        ...clips.slice(targetClipIdx + 1),
+      ];
+
+      // Ripple recalculate all start times sequentially
+      let acc = 0;
+      return merged.map((c) => {
+        const res = { ...c, start: acc };
+        acc += c.duration;
+        return res;
+      });
+    });
+
+    const origDuration = rangeEnd - rangeStart;
+    const newDuration = origDuration / targetSpeed;
+    setToastMessage(
+      `⚡ Speeddraw de ${targetSpeed}x aplicado (de ${origDuration.toFixed(1)}s a ${newDuration.toFixed(1)}s)`
+    );
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   // Copy selected clip
@@ -1567,20 +1736,26 @@ export const App: React.FC = () => {
           : [];
 
       for (const clip of clipsToExport) {
-        if (clip.file && effVideoVol > 0) {
+        const clipVol = clip.volume !== undefined ? clip.volume : effVideoVol;
+        if (clip.file && clipVol > 0) {
           try {
             const arr = await clip.file.arrayBuffer();
             const videoAudioBuffer = await exportAudioCtx.decodeAudioData(arr.slice(0));
             if (videoAudioBuffer && videoAudioBuffer.numberOfChannels > 0) {
               const videoBufferSource = exportAudioCtx.createBufferSource();
               videoBufferSource.buffer = videoAudioBuffer;
+              const clipSpeed = clip.speed || 1;
+              try {
+                videoBufferSource.playbackRate.setValueAtTime(clipSpeed, 0);
+              } catch (e) {}
               const videoGain = exportAudioCtx.createGain();
-              videoGain.gain.setValueAtTime(effVideoVol, 0);
+              videoGain.gain.setValueAtTime(clipVol, 0);
               videoBufferSource.connect(videoGain);
               videoGain.connect(destinationNode);
               const clipTrim = clip.trimStart || 0;
-              const playDuration = Math.min(clip.duration, Math.max(0, videoAudioBuffer.duration - clipTrim));
-              videoBufferSource.start(clip.start, clipTrim, playDuration);
+              const sourceDurToPlay = Math.max(0, videoAudioBuffer.duration - clipTrim);
+              const playDuration = Math.min(clip.duration, sourceDurToPlay / clipSpeed);
+              videoBufferSource.start(clip.start, clipTrim, playDuration * clipSpeed);
               hasAudioTrack = true;
             }
           } catch (e) {
@@ -1759,6 +1934,11 @@ export const App: React.FC = () => {
             : videoRef.current;
           if (firstEl) {
             firstEl.currentTime = firstClip ? (firstClip.trimStart || 0) : 0;
+            if (firstClip?.speed) {
+              try {
+                firstEl.playbackRate = Math.min(16.0, Math.max(0.25, firstClip.speed));
+              } catch (e) {}
+            }
             firstEl.play().catch(console.error);
             if (videoRef) videoRef.current = firstEl;
           } else if (videoRef.current) {
@@ -2007,6 +2187,8 @@ export const App: React.FC = () => {
           setTextClips={setTextClips}
           onAddTextClip={handleAddTextClip}
           onOpenRecorder={() => setIsScreenRecorderOpen(true)}
+          onOpenSpeeddrawModal={() => setIsSpeeddrawModalOpen(true)}
+          onSetClipSpeed={handleSetClipSpeed}
         />
 
         {/* Center Live Stage Canvas */}
@@ -2081,6 +2263,8 @@ export const App: React.FC = () => {
         onPasteAtPlayhead={handlePasteAtPlayhead}
         onAddVideoClick={() => videoFileInputRef.current?.click()}
         onAddSoundClick={() => audioFileInputRef.current?.click()}
+        onOpenSpeeddrawModal={() => setIsSpeeddrawModalOpen(true)}
+        onSetClipSpeed={handleSetClipSpeed}
         videoVolume={videoVolume}
         isVideoMuted={isVideoMuted}
       />
@@ -2168,6 +2352,17 @@ export const App: React.FC = () => {
         isOpen={isScreenRecorderOpen}
         onClose={() => setIsScreenRecorderOpen(false)}
         onAddVideoClip={handleAddVideoClip}
+      />
+
+      {/* Speeddraw / Video Speed Ramp Range Modal */}
+      <SpeeddrawModal
+        isOpen={isSpeeddrawModalOpen}
+        onClose={() => setIsSpeeddrawModalOpen(false)}
+        currentTime={currentTime}
+        totalDuration={duration}
+        videoClips={videoClips}
+        selectedClipId={selectedTimelineItem?.track === 'video' ? selectedTimelineItem.id : null}
+        onApplyRangeSpeed={handleApplySpeeddrawToRange}
       />
     </div>
   );

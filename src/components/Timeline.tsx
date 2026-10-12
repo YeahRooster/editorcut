@@ -24,7 +24,8 @@ import {
   ChevronsRight,
   Repeat,
   Volume2,
-  VolumeX
+  VolumeX,
+  Zap
 } from 'lucide-react';
 
 interface TimelineProps {
@@ -55,6 +56,8 @@ interface TimelineProps {
   textClips?: TextClipItem[];
   setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
   onAddTextClipClick?: () => void;
+  onOpenSpeeddrawModal?: () => void;
+  onSetClipSpeed?: (clipId: string, speed: number) => void;
   className?: string;
 }
 
@@ -86,6 +89,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   textClips = [],
   setTextClips,
   onAddTextClipClick,
+  onOpenSpeeddrawModal,
+  onSetClipSpeed,
   className,
 }) => {
   const trackContainerRef = useRef<HTMLDivElement>(null);
@@ -391,6 +396,50 @@ export const Timeline: React.FC<TimelineProps> = ({
             <span>Cortar ✂️</span>
           </button>
 
+          {/* Speeddraw / Acelerar Tramo Button */}
+          {onOpenSpeeddrawModal && (
+            <button
+              onClick={onOpenSpeeddrawModal}
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-neutral-800 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-200 hover:text-white rounded-lg border border-amber-500/40 font-semibold transition active:scale-95 shadow-sm text-[11px] sm:text-xs whitespace-nowrap"
+              title="Acelerar un tramo de video (Speeddraw / Cámara rápida)"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span>Speeddraw ⚡</span>
+            </button>
+          )}
+
+          {/* Quick Clip Speed Selector when a video clip is selected */}
+          {selectedItem?.track === 'video' && onSetClipSpeed && (
+            <div className="flex items-center gap-1 bg-neutral-950/80 border border-neutral-700/80 rounded-lg px-2 py-0.5 text-[11px] flex-shrink-0">
+              <span className="text-neutral-400 flex items-center gap-1 text-[10px] font-bold">
+                <Zap className="w-3 h-3 text-amber-400" />
+                <span>Velocidad:</span>
+              </span>
+              {[1, 2, 4, 8, 16].map((spd) => {
+                const currentClip = videoClips.find((c) => c.id === selectedItem.id);
+                const isCurrent = (currentClip?.speed || 1) === spd;
+                return (
+                  <button
+                    key={spd}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSetClipSpeed(selectedItem.id, spd);
+                    }}
+                    className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] transition ${
+                      isCurrent
+                        ? 'bg-amber-500 text-black shadow-sm font-extrabold'
+                        : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                    }`}
+                    title={`Establecer velocidad en ${spd}x`}
+                  >
+                    {spd}x
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Add Video Button */}
           <button
             onClick={onAddVideoClick}
@@ -572,6 +621,20 @@ export const Timeline: React.FC<TimelineProps> = ({
                     <span className="truncate">
                       {clip.name} ({Math.round(clipDur)}s)
                     </span>
+                    {/* Speeddraw Badge */}
+                    {clip.speed && clip.speed !== 1 && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onOpenSpeeddrawModal) onOpenSpeeddrawModal();
+                        }}
+                        className="px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/30 to-rose-500/30 text-amber-300 border border-amber-500/50 text-[9px] font-mono font-black flex items-center gap-0.5 shadow-sm flex-shrink-0 hover:scale-105 transition"
+                        title={`Clip acelerado a ${clip.speed}x (Speeddraw). Clic para ajustar.`}
+                      >
+                        <Zap className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
+                        <span>{clip.speed}x Speeddraw</span>
+                      </span>
+                    )}
                     {index < effectiveVideoClips.length - 1 && (
                       <button
                         type="button"

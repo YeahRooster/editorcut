@@ -80,6 +80,8 @@ interface LeftSidebarProps {
   textClips?: TextClipItem[];
   setTextClips?: React.Dispatch<React.SetStateAction<TextClipItem[]>>;
   onAddTextClip?: (customText?: string) => void;
+  onOpenSpeeddrawModal?: () => void;
+  onSetClipSpeed?: (clipId: string, speed: number) => void;
 }
 
 type TabKey = 'media' | 'text' | 'subtitles' | 'music' | 'watermark';
@@ -117,6 +119,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   textClips = [],
   setTextClips,
   onAddTextClip,
+  onOpenSpeeddrawModal,
+  onSetClipSpeed,
   className,
   onToggleCollapse,
   isCollapsed: _isCollapsed,
@@ -795,8 +799,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           <Film className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
                           <div className="truncate">
                             <div className="text-xs font-bold truncate">{clip.name}</div>
-                            <div className="text-[10px] text-neutral-400">
-                              Duración: {Math.round(clip.duration)}s
+                            <div className="text-[10px] text-neutral-400 flex items-center gap-1">
+                              <span>Duración: {Math.round(clip.duration)}s</span>
+                              {clip.speed && clip.speed !== 1 && (
+                                <span className="text-amber-400 font-bold font-mono">
+                                  • ⚡ {clip.speed}x
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -822,6 +831,71 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               )}
             </div>
           )}
+
+            {/* SECCIÓN: VELOCIDAD Y SPEEDDRAW */}
+            {(videoClips.length > 0 || mediaAsset) && (
+              <div className="pt-2 border-t border-neutral-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200">
+                      Velocidad y Speeddraw ⚡
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-amber-400/90 font-mono font-bold">
+                    Timelapse
+                  </span>
+                </div>
+
+                <div className="p-3 bg-neutral-950/70 border border-neutral-800/80 rounded-2xl space-y-2.5 shadow-sm">
+                  {selectedItem?.track === 'video' ? (
+                    <div>
+                      <div className="text-[11px] font-bold text-neutral-300 mb-1.5 flex items-center justify-between">
+                        <span>Velocidad del clip seleccionado:</span>
+                        <span className="text-amber-400 font-mono font-bold">
+                          {(videoClips.find((c) => c.id === selectedItem.id)?.speed || 1)}x
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1">
+                        {[1, 2, 4, 8, 16].map((spd) => {
+                          const currentClip = videoClips.find((c) => c.id === selectedItem.id);
+                          const isCurrent = (currentClip?.speed || 1) === spd;
+                          return (
+                            <button
+                              key={spd}
+                              type="button"
+                              onClick={() => onSetClipSpeed && onSetClipSpeed(selectedItem.id, spd)}
+                              className={`py-1 rounded-xl text-center font-mono font-bold text-xs border transition ${
+                                isCurrent
+                                  ? 'bg-amber-500 text-black border-amber-400 font-extrabold shadow-sm'
+                                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800'
+                              }`}
+                            >
+                              {spd}x
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-neutral-400">
+                      Acelera cualquier video o tramo para speeddraw, pintura o tutoriales rápidos.
+                    </p>
+                  )}
+
+                  {onOpenSpeeddrawModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenSpeeddrawModal}
+                      className="w-full py-2 px-3 bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-neutral-900 hover:from-amber-500/30 hover:to-rose-500/30 border border-amber-500/40 hover:border-amber-400 text-amber-200 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                      <span>Acelerar tramo específico (Speeddraw)...</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* SECCIÓN: TRANSICIONES Y EFECTOS DE VIDEO */}
             <div className="pt-2 border-t border-neutral-800 space-y-3">

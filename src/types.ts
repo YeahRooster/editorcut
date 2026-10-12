@@ -106,6 +106,7 @@ export interface MediaAsset {
   start?: number;
   trimStart?: number;
   trimEnd?: number;
+  speed?: number;
 }
 
 export interface VideoClip {
@@ -122,6 +123,7 @@ export interface VideoClip {
   trimEnd?: number;
   transitionToNext?: VideoTransitionType;
   transitionDuration?: number;
+  speed?: number; // Playback speed multiplier (1 = normal, 2 = 2x, 4 = 4x, 8 = 8x speeddraw, etc.)
 }
 
 export interface AudioClip {

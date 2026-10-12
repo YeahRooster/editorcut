@@ -257,16 +257,28 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     if (activeVideoEl) {
       const clipStart = activeClip ? activeClip.start : 0;
       const clipTrim = activeClip ? (activeClip.trimStart || 0) : 0;
-      const relTime = clipTrim + Math.max(0, currentTime - clipStart);
+      const clipSpeed = (activeClip && activeClip.speed) || 1;
+      const relTime = clipTrim + Math.max(0, (currentTime - clipStart) * clipSpeed);
       const drift = Math.abs(activeVideoEl.currentTime - relTime);
       const isHandoffClip = lastAdvancedClipIdRef.current === activeClip?.id;
 
-      // Synchronize video muted state & volume
-      if (activeVideoEl.muted !== isMuted) {
-        activeVideoEl.muted = isMuted;
+      // Synchronize video playbackRate for speeddraw / fast motion
+      const targetRate = Math.min(16.0, Math.max(0.25, clipSpeed));
+      if (Math.abs(activeVideoEl.playbackRate - targetRate) > 0.05) {
+        try {
+          activeVideoEl.playbackRate = targetRate;
+          (activeVideoEl as unknown as { preservesPitch?: boolean }).preservesPitch = true;
+        } catch (e) {}
       }
-      if (Math.abs(activeVideoEl.volume - targetVol) > 0.05) {
-        activeVideoEl.volume = targetVol;
+
+      // Synchronize video muted state & volume (including per-clip volume for muted speeddraws)
+      const clipVol = activeClip?.volume !== undefined ? activeClip.volume : targetVol;
+      const effVol = isMuted ? 0 : Math.min(1.0, clipVol);
+      if (activeVideoEl.muted !== (isMuted || effVol === 0)) {
+        activeVideoEl.muted = isMuted || effVol === 0;
+      }
+      if (Math.abs(activeVideoEl.volume - effVol) > 0.05) {
+        activeVideoEl.volume = effVol;
       }
 
       if (!isPlaying) {
@@ -295,7 +307,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
         // Single master clock: report real hardware video playback time smoothly to timeline
         if (onTimeUpdate && !activeVideoEl.paused && !isHandoffClip) {
-          const clipPlayhead = Math.max(0, activeVideoEl.currentTime - clipTrim);
+          const clipPlayhead = Math.max(0, (activeVideoEl.currentTime - clipTrim) / clipSpeed);
           const currentReal = clipStart + clipPlayhead;
           if (Math.abs(currentTime - currentReal) > 0.03) {
             onTimeUpdate(currentReal);
@@ -304,7 +316,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       }
 
       // Check if video reached total timeline duration (in preview mode only)
-      const clipPlayhead = Math.max(0, activeVideoEl.currentTime - clipTrim);
+      const clipPlayhead = Math.max(0, (activeVideoEl.currentTime - clipTrim) / clipSpeed);
       const currentReal = clipStart + clipPlayhead;
       if (!isExporting && isPlaying && duration > 0 && (currentReal >= duration - 0.04 || currentTime >= duration - 0.04)) {
         try {
@@ -1575,7 +1587,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     clipVideosRef.current.forEach((v, id) => {
       const clip = videoClips?.find((c) => c.id === id);
       if (clip) {
-        const rel = Math.max(0, Math.min(clip.duration, time - clip.start));
+        const speed = clip.speed || 1;
+        const rel = (clip.trimStart || 0) + Math.max(0, Math.min(clip.duration * speed, (time - clip.start) * speed));
         try {
           v.currentTime = rel;
         } catch (e) {}
