@@ -165,11 +165,63 @@ export interface TransitionConfig {
 export type ExportQuality = '4k' | '1080p' | '720p' | '480p';
 export type ExportFPS = 30 | 60;
 export type ExportFormat = 'mp4' | 'webm';
-
 export interface ExportSettings {
   quality: ExportQuality;
   fps: ExportFPS;
   format: ExportFormat;
+}
+
+// -------------------------------------------------------------
+// COMIC PANELS / VIÑETAS DE CÓMIC & SPLIT SCREEN TYPES
+// -------------------------------------------------------------
+export type ComicLayoutType =
+  | 'none'
+  | 'inset_pip'     // Inset reaction comic panel (Reference 1)
+  | 'comic_3_left'  // 2 stacked on left, 1 tall on right (Reference 2)
+  | 'comic_3_right' // 1 tall on left, 2 stacked on right
+  | 'split_2_vert'  // 2 columns side by side (50/50)
+  | 'split_2_horiz' // 2 rows top and bottom (50/50)
+  | 'grid_4'        // 2x2 Comic 4-panel grid
+  | 'strip_3_horiz' // 3 cinematic horizontal strips
+  | 'custom';
+
+export type ComicPanelAnimation =
+  | 'none'
+  | 'slide_bottom'
+  | 'slide_top'
+  | 'slide_left'
+  | 'slide_right'
+  | 'pop_zoom'
+  | 'fade';
+
+export interface ComicPanelItem {
+  id: string;
+  name: string;
+  x: number;      // 0 to 1 normalized canvas coordinate
+  y: number;      // 0 to 1 normalized canvas coordinate
+  width: number;  // 0 to 1 normalized canvas width
+  height: number; // 0 to 1 normalized canvas height
+  mediaUrl: string | null;
+  mediaType: 'video' | 'image';
+  mediaFile?: File;
+  sourceClipId?: string;
+  start: number;       // in timeline seconds when panel enters
+  duration: number;    // in seconds (0 = persists until end of timeline)
+  animation: ComicPanelAnimation;
+  animationDuration: number; // in seconds (e.g. 0.5s)
+  volume: number;      // 0 to 1 (default 0 for secondary panels)
+  isMuted?: boolean;
+}
+
+export interface ComicConfig {
+  enabled: boolean;
+  layout: ComicLayoutType;
+  borderWidth: number; // in px (e.g. 4, 6, 8)
+  borderColor: string; // hex or rgba (default #000000)
+  borderRadius: number; // corner radius in px
+  hasShadow: boolean;
+  gutter: number; // spacing between panels in px
+  panels: ComicPanelItem[];
 }
 
 

@@ -5,7 +5,8 @@ import type {
   SubtitleItem,
   TextClipItem,
   TransitionConfig,
-  VideoTransitionType
+  VideoTransitionType,
+  ComicConfig
 } from '../types';
 
 export interface SavedProject {
@@ -68,6 +69,8 @@ export interface SavedProject {
     duration?: number;
     fileBlob?: Blob;
   };
+
+  comicConfig?: ComicConfig;
 }
 
 export interface SavedProjectSummary {

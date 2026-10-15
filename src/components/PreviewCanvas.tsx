@@ -9,7 +9,8 @@ import type {
   VideoClip,
   TransitionConfig,
   TimelineSelection,
-  ExportQuality
+  ExportQuality,
+  ComicConfig
 } from '../types';
 import { selfieSegmenter } from '../utils/segmentation';
 import { 
@@ -54,6 +55,10 @@ interface PreviewCanvasProps {
   setSelectedElement?: (el: 'none' | 'watermark' | 'title' | 'subtitle') => void;
   className?: string;
   exportQuality?: ExportQuality;
+  comicConfig?: ComicConfig;
+  setComicConfig?: React.Dispatch<React.SetStateAction<ComicConfig>>;
+  selectedPanelId?: string | null;
+  setSelectedPanelId?: (id: string | null) => void;
 }
 
 export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
@@ -87,26 +92,59 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   selectedElement = 'none',
   setSelectedElement,
   className,
+  comicConfig,
+  setComicConfig,
+  selectedPanelId,
+  setSelectedPanelId,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const watermarkImgRef = useRef<HTMLImageElement | null>(null);
   const staticImgRef = useRef<HTMLImageElement | null>(null);
   const clipVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const comicPanelVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const comicPanelImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const lastAdvancedClipIdRef = useRef<string | null>(null);
 
-  // Synchronize clip video elements audio & mute
+  // Synchronize clip and comic panel video elements audio & mute
   useEffect(() => {
     clipVideosRef.current.forEach((v) => {
       v.muted = isMuted;
       v.volume = isMuted ? 0 : Math.min(1.0, videoVolume);
     });
-  }, [isMuted, videoVolume]);
+    if (comicConfig?.enabled && comicConfig.panels) {
+      comicConfig.panels.forEach((p) => {
+        const v = comicPanelVideosRef.current.get(p.id);
+        if (v) {
+          const effVol = (isMuted || p.isMuted) ? 0 : Math.min(1.0, (p.volume ?? 0) * videoVolume);
+          v.muted = isMuted || p.isMuted || effVol === 0;
+          v.volume = effVol;
+        }
+      });
+    }
+  }, [isMuted, videoVolume, comicConfig]);
+
+  // Preload and cache panel images
+  useEffect(() => {
+    if (comicConfig?.enabled && comicConfig.panels) {
+      comicConfig.panels.forEach((p) => {
+        if (p.mediaType === 'image' && p.mediaUrl) {
+          if (!comicPanelImagesRef.current.has(p.id) || comicPanelImagesRef.current.get(p.id)?.src !== p.mediaUrl) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = p.mediaUrl;
+            comicPanelImagesRef.current.set(p.id, img);
+          }
+        }
+      });
+    }
+  }, [comicConfig]);
 
   // Hover, Dragging & Resize states
-  type DragMode = 'none' | 'watermark_move' | 'watermark_resize' | 'title' | 'title_resize' | 'subtitle';
+  type DragMode = 'none' | 'watermark_move' | 'watermark_resize' | 'title' | 'title_resize' | 'subtitle' | 'comic_panel_move';
   const [dragMode, setDragMode] = useState<DragMode>('none');
+  const [draggedPanelId, setDraggedPanelId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [hoveredElement, setHoveredElement] = useState<'none' | 'watermark' | 'watermark_resize' | 'title' | 'title_resize' | 'subtitle'>('none');
+  const [hoveredElement, setHoveredElement] = useState<'none' | 'watermark' | 'watermark_resize' | 'title' | 'title_resize' | 'subtitle' | 'comic_panel'>('none');
 
   // Double-click inline editing states
   const [editingSubtitle, setEditingSubtitle] = useState<{ id: string; text: string } | null>(null);
@@ -392,6 +430,42 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       sourceHeight = staticImgRef.current.naturalHeight || cHeight;
     }
 
+    // Synchronize comic panel video playback & audio
+    if (comicConfig?.enabled && comicConfig.panels && comicConfig.panels.length > 0) {
+      comicConfig.panels.forEach((p) => {
+        const pVid = comicPanelVideosRef.current.get(p.id);
+        if (!pVid) return;
+
+        const isPanelVisible =
+          currentTime >= p.start && (p.duration === 0 || currentTime <= p.start + p.duration);
+        const relTime = Math.max(0, currentTime - p.start);
+        const effPanelVol = (isMuted || p.isMuted) ? 0 : Math.min(1.0, (p.volume ?? 0) * videoVolume);
+
+        if (pVid.muted !== (effPanelVol === 0)) {
+          pVid.muted = effPanelVol === 0;
+        }
+        if (Math.abs(pVid.volume - effPanelVol) > 0.05) {
+          pVid.volume = effPanelVol;
+        }
+
+        if (!isPlaying || !isPanelVisible) {
+          if (!pVid.paused) {
+            try { pVid.pause(); } catch (e) {}
+          }
+          if (isPanelVisible && Math.abs(pVid.currentTime - relTime) > 0.06) {
+            try { pVid.currentTime = relTime; } catch (e) {}
+          }
+        } else {
+          if (Math.abs(pVid.currentTime - relTime) > 0.35) {
+            try { pVid.currentTime = relTime; } catch (e) {}
+          }
+          if (pVid.paused) {
+            pVid.play().catch(() => {});
+          }
+        }
+      });
+    }
+
     // -------------------------------------------------------------
     // ACTIVE TITLE & TEXT ANIMATION ENGINE
     // -------------------------------------------------------------
@@ -556,6 +630,190 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       ctx.font = '36px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Arrastra un video o foto aquí', cWidth / 2, cHeight / 2);
+    }
+
+    // -------------------------------------------------------------
+    // LAYER: COMIC PANELS / VIÑETAS DE CÓMIC & SPLIT SCREEN
+    // -------------------------------------------------------------
+    if (comicConfig?.enabled && comicConfig.layout !== 'none' && comicConfig.panels.length > 0) {
+      // If multi-panel split, fill entire background with comic border color for clean gutters
+      if (comicConfig.layout !== 'inset_pip') {
+        ctx.fillStyle = comicConfig.borderColor || '#000000';
+        ctx.fillRect(0, 0, cWidth, cHeight);
+      }
+
+      comicConfig.panels.forEach((panel, pIdx) => {
+        const isPanelVisible =
+          currentTime >= panel.start &&
+          (panel.duration === 0 || currentTime <= panel.start + panel.duration);
+
+        // In edit mode (not exporting), allow seeing panel outlines even if timing hasn't triggered yet
+        if (!isPanelVisible && (isExporting || selectedPanelId !== panel.id)) {
+          return;
+        }
+
+        const px = panel.x * cWidth;
+        const py = panel.y * cHeight;
+        const pw = panel.width * cWidth;
+        const ph = panel.height * cHeight;
+
+        // Calculate entrance slide / zoom / fade animation
+        const timeFromStart = Math.max(0, currentTime - panel.start);
+        const animDur = Math.max(0.1, panel.animationDuration || 0.5);
+        const animProgress = Math.min(1, timeFromStart / animDur);
+        const ease = 1 - Math.pow(1 - animProgress, 3);
+
+        let animOffsetX = 0;
+        let animOffsetY = 0;
+        let animScale = 1;
+        let animOpacity = isPanelVisible ? 1 : 0.35;
+
+        if (isPanelVisible && panel.animation !== 'none') {
+          if (panel.animation === 'slide_bottom') {
+            animOffsetY = (1 - ease) * (cHeight * 0.45);
+            animOpacity = Math.min(1, ease * 1.5);
+          } else if (panel.animation === 'slide_top') {
+            animOffsetY = -(1 - ease) * (cHeight * 0.45);
+            animOpacity = Math.min(1, ease * 1.5);
+          } else if (panel.animation === 'slide_left') {
+            animOffsetX = -(1 - ease) * (cWidth * 0.45);
+            animOpacity = Math.min(1, ease * 1.5);
+          } else if (panel.animation === 'slide_right') {
+            animOffsetX = (1 - ease) * (cWidth * 0.45);
+            animOpacity = Math.min(1, ease * 1.5);
+          } else if (panel.animation === 'pop_zoom') {
+            animScale = 0.4 + 0.6 * ease;
+            animOpacity = ease;
+          } else if (panel.animation === 'fade') {
+            animOpacity = ease;
+          }
+        }
+
+        ctx.save();
+        ctx.globalAlpha = animOpacity;
+
+        if (animOffsetX !== 0 || animOffsetY !== 0) {
+          ctx.translate(animOffsetX, animOffsetY);
+        }
+
+        if (animScale !== 1) {
+          const cx = px + pw / 2;
+          const cy = py + ph / 2;
+          ctx.translate(cx, cy);
+          ctx.scale(animScale, animScale);
+          ctx.translate(-cx, -cy);
+        }
+
+        const radius = Math.max(0, Math.min(comicConfig.borderRadius || 0, Math.min(pw, ph) / 2));
+
+        // Draw Comic Drop Shadow (for 3D Pop / Floating effect)
+        if (comicConfig.hasShadow && isPanelVisible) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+          ctx.shadowBlur = 20;
+          ctx.shadowOffsetX = 4;
+          ctx.shadowOffsetY = 8;
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.roundRect(px, py, pw, ph, radius);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Clip panel viewport for media drawing
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(px, py, pw, ph, radius);
+        ctx.clip();
+
+        // Dark background inside panel
+        ctx.fillStyle = '#171717';
+        ctx.fillRect(px, py, pw, ph);
+
+        // Resolve panel media source
+        let panelVideoEl: HTMLVideoElement | null | undefined = comicPanelVideosRef.current.get(panel.id);
+        if (!panelVideoEl && panel.sourceClipId) {
+          panelVideoEl = clipVideosRef.current.get(panel.sourceClipId);
+        }
+        if (!panelVideoEl && pIdx === 0 && activeSource && activeSource instanceof HTMLVideoElement) {
+          panelVideoEl = activeVideoEl;
+        }
+
+        const panelImgEl = comicPanelImagesRef.current.get(panel.id);
+
+        if (panelVideoEl && panelVideoEl.videoWidth > 0 && panelVideoEl.videoHeight > 0) {
+          const sW = panelVideoEl.videoWidth;
+          const sH = panelVideoEl.videoHeight;
+          const r = Math.max(pw / sW, ph / sH);
+          const dW = sW * r;
+          const dH = sH * r;
+          const dX = px + (pw - dW) / 2;
+          const dY = py + (ph - dH) / 2;
+          ctx.drawImage(panelVideoEl, 0, 0, sW, sH, dX, dY, dW, dH);
+        } else if (panelImgEl && panelImgEl.naturalWidth > 0 && panelImgEl.naturalHeight > 0) {
+          const sW = panelImgEl.naturalWidth;
+          const sH = panelImgEl.naturalHeight;
+          const r = Math.max(pw / sW, ph / sH);
+          const dW = sW * r;
+          const dH = sH * r;
+          const dX = px + (pw - dW) / 2;
+          const dY = py + (ph - dH) / 2;
+          ctx.drawImage(panelImgEl, 0, 0, sW, sH, dX, dY, dW, dH);
+        } else if (staticImgRef.current && pIdx === 0) {
+          const sW = staticImgRef.current.naturalWidth;
+          const sH = staticImgRef.current.naturalHeight;
+          const r = Math.max(pw / sW, ph / sH);
+          const dW = sW * r;
+          const dH = sH * r;
+          const dX = px + (pw - dW) / 2;
+          const dY = py + (ph - dH) / 2;
+          ctx.drawImage(staticImgRef.current, 0, 0, sW, sH, dX, dY, dW, dH);
+        } else {
+          // Placeholder inside panel
+          ctx.fillStyle = '#222222';
+          ctx.fillRect(px, py, pw, ph);
+          ctx.fillStyle = '#888888';
+          ctx.font = 'bold 22px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(panel.name || `Viñeta ${pIdx + 1}`, px + pw / 2, py + ph / 2);
+        }
+
+        ctx.restore(); // Restore clip
+
+        // Draw Comic Border Frame
+        const bWidth = comicConfig.borderWidth ?? 6;
+        if (bWidth > 0) {
+          ctx.strokeStyle = comicConfig.borderColor || '#000000';
+          ctx.lineWidth = bWidth;
+          ctx.beginPath();
+          ctx.roundRect(px, py, pw, ph, radius);
+          ctx.stroke();
+        }
+
+        // Interactive bounding box when selected in editor (NEVER during export)
+        const isInteractingPanel =
+          !isExporting &&
+          (selectedPanelId === panel.id ||
+            hoveredElement === 'comic_panel' ||
+            dragMode === 'comic_panel_move');
+
+        if (isInteractingPanel && selectedPanelId === panel.id) {
+          ctx.strokeStyle = '#f43f5e';
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = '#f43f5e';
+          ctx.font = '700 16px Inter, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`📐 ${panel.name || `Viñeta ${pIdx + 1}`}`, px, py - 6);
+        }
+
+        ctx.restore(); // Restore transform & alpha
+      });
     }
 
     // -------------------------------------------------------------
@@ -1184,6 +1442,8 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     dragMode,
     isExporting,
     selectedElement,
+    comicConfig,
+    selectedPanelId,
   ]);
 
   // Continuous animation frame loop
@@ -1397,7 +1657,38 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       }
     }
 
-    // 6. If clicked on empty canvas: deselect
+    // 6. Check Comic Panels (Reverse order so top/inset panel gets hit first)
+    if (comicConfig?.enabled && comicConfig.panels && comicConfig.panels.length > 0) {
+      for (const panel of [...comicConfig.panels].reverse()) {
+        const isPanelVisible =
+          currentTime >= panel.start &&
+          (panel.duration === 0 || currentTime <= panel.start + panel.duration);
+        if (!isPanelVisible && selectedPanelId !== panel.id) continue;
+
+        const px = panel.x * 100;
+        const py = panel.y * 100;
+        const pw = panel.width * 100;
+        const ph = panel.height * 100;
+
+        if (xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph) {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          setSelectedPanelId?.(panel.id);
+          setSelectedElement?.('none');
+
+          if (comicConfig.layout === 'inset_pip') {
+            setDragMode('comic_panel_move');
+            setDraggedPanelId(panel.id);
+            setDragOffset({
+              x: xPct - px,
+              y: yPct - py,
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    // 7. If clicked on empty canvas: deselect
     setDragMode('none');
     setSelectedElement?.('none');
   };
@@ -1440,6 +1731,21 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         yPct <= titleBox.y + titleBox.h
       ) {
         setHoveredElement('title');
+      } else if (
+        comicConfig?.enabled &&
+        comicConfig.layout === 'inset_pip' &&
+        comicConfig.panels.length > 0 &&
+        (() => {
+          const inset = comicConfig.panels[0];
+          if (!inset) return false;
+          const px = inset.x * 100;
+          const py = inset.y * 100;
+          const pw = inset.width * 100;
+          const ph = inset.height * 100;
+          return xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph;
+        })()
+      ) {
+        setHoveredElement('comic_panel');
       } else {
         setHoveredElement('none');
       }
@@ -1497,6 +1803,19 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           prev.map((c) => (c.id === activeInteractiveTextClip.id ? { ...c, position: newPos } : c))
         );
       }
+    } else if (dragMode === 'comic_panel_move' && draggedPanelId && setComicConfig) {
+      const panel = comicConfig?.panels.find((p) => p.id === draggedPanelId);
+      const pw = panel ? panel.width * 100 : 36;
+      const ph = panel ? panel.height * 100 : 38;
+      const newXPct = Math.max(0, Math.min(100 - pw, xPct - dragOffset.x));
+      const newYPct = Math.max(0, Math.min(100 - ph, yPct - dragOffset.y));
+
+      setComicConfig((prev) => ({
+        ...prev,
+        panels: prev.panels.map((p) =>
+          p.id === draggedPanelId ? { ...p, x: newXPct / 100, y: newYPct / 100 } : p
+        ),
+      }));
     }
   };
 
@@ -1507,6 +1826,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       // ignore
     }
     setDragMode('none');
+    setDraggedPanelId(null);
   };
 
   // Double click inline editing handler for Subtitle and Title
@@ -1594,6 +1914,17 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         } catch (e) {}
       }
     });
+    if (comicConfig?.enabled && comicConfig.panels) {
+      comicConfig.panels.forEach((p) => {
+        const v = comicPanelVideosRef.current.get(p.id);
+        if (v) {
+          const rel = Math.max(0, time - p.start);
+          try {
+            v.currentTime = rel;
+          } catch (e) {}
+        }
+      });
+    }
     onSeek(time);
   };
 
@@ -1647,6 +1978,31 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           />
         )
       )}
+
+      {/* Hidden Video Player Elements for Comic Panels */}
+      {comicConfig?.enabled &&
+        comicConfig.panels.map((p) => {
+          if (!p.mediaUrl || p.mediaType !== 'video') return null;
+          return (
+            <video
+              key={`comic-panel-vid-${p.id}`}
+              id={`comic-panel-video-${p.id}`}
+              ref={(el) => {
+                if (el) {
+                  comicPanelVideosRef.current.set(p.id, el);
+                } else {
+                  comicPanelVideosRef.current.delete(p.id);
+                }
+              }}
+              src={p.mediaUrl}
+              className="hidden"
+              playsInline
+              preload="auto"
+              crossOrigin="anonymous"
+              muted={p.isMuted || isMuted || (p.volume ?? 0) <= 0}
+            />
+          );
+        })}
 
       {/* Center Canvas Viewport */}
       <div className="flex-1 min-h-0 relative group flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900/50 max-w-full">

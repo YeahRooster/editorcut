@@ -13,7 +13,8 @@ import type {
   TimelineTrackType,
   TransitionConfig,
   ExportSettings,
-  ExportQuality
+  ExportQuality,
+  ComicConfig
 } from './types';
 import { Header } from './components/Header';
 import { LeftSidebar } from './components/LeftSidebar';
@@ -23,6 +24,7 @@ import { ExportModal } from './components/ExportModal';
 import { ProjectsModal } from './components/ProjectsModal';
 import { ScreenRecorderModal } from './components/ScreenRecorderModal';
 import { SpeeddrawModal } from './components/SpeeddrawModal';
+import { createDefaultComicConfig } from './utils/comicPresets';
 import { LandingPage } from './components/LandingPage';
 import { OnboardingTour } from './components/OnboardingTour';
 import { musicPlayer } from './utils/audioSynth';
@@ -181,6 +183,10 @@ export const App: React.FC = () => {
   // 13. Selected Canvas Element for keyboard deletion (Delete/Supr)
   const [selectedElement, setSelectedElement] = useState<'none' | 'watermark' | 'title' | 'subtitle'>('none');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 13b. Comic Panels / Split Screen Configuration (Viñetas de Cómic)
+  const [comicConfig, setComicConfig] = useState<ComicConfig>(createDefaultComicConfig);
+  const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
 
   // 14. Projects Management & Screen Recorder State
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState<boolean>(false);
@@ -722,6 +728,7 @@ export const App: React.FC = () => {
           duration: watermarkConfig.duration,
           fileBlob: watermarkBlob,
         },
+        comicConfig,
       };
 
       await saveProjectToDB(project);
@@ -854,6 +861,7 @@ export const App: React.FC = () => {
     });
     if (project.videoVolume !== undefined) setVideoVolume(project.videoVolume);
     if (project.isVideoMuted !== undefined) setIsVideoMuted(project.isVideoMuted);
+    setComicConfig(project.comicConfig || createDefaultComicConfig());
     setCurrentTime(0);
     setIsPlaying(false);
     setToastMessage(`📂 Proyecto "${project.name}" cargado`);
@@ -869,6 +877,7 @@ export const App: React.FC = () => {
     setAudioClips([]);
     setSubtitles([]);
     setTextClips([]);
+    setComicConfig(createDefaultComicConfig());
     setCurrentTime(0);
     setIsPlaying(false);
     setTextConfig((prev) => ({
@@ -989,6 +998,7 @@ export const App: React.FC = () => {
             duration: watermarkConfig.duration,
             fileBlob: watermarkBlob,
           },
+          comicConfig,
         });
       } catch (e) {
         // silent fail on autosave
@@ -1008,6 +1018,7 @@ export const App: React.FC = () => {
     videoVolume,
     isVideoMuted,
     currentProjectName,
+    comicConfig,
   ]);
 
   // Add an animated title clip at playhead position (fresh title, no duplication)
@@ -1764,6 +1775,32 @@ export const App: React.FC = () => {
         }
       }
 
+      // 1b. Comic Panels Audio Mixing
+      if (comicConfig.enabled && comicConfig.panels.length > 0) {
+        for (const panel of comicConfig.panels) {
+          const panelVol = panel.isMuted ? 0 : (panel.volume ?? 0) * effVideoVol;
+          if (panel.mediaFile && panelVol > 0) {
+            try {
+              const arr = await panel.mediaFile.arrayBuffer();
+              const pAudioBuf = await exportAudioCtx.decodeAudioData(arr.slice(0));
+              if (pAudioBuf && pAudioBuf.numberOfChannels > 0) {
+                const pSource = exportAudioCtx.createBufferSource();
+                pSource.buffer = pAudioBuf;
+                const pGain = exportAudioCtx.createGain();
+                pGain.gain.setValueAtTime(panelVol, 0);
+                pSource.connect(pGain);
+                pGain.connect(destinationNode);
+                const playDur = panel.duration > 0 ? panel.duration : (exportDuration - panel.start);
+                pSource.start(panel.start, 0, Math.max(0.1, playDur));
+                hasAudioTrack = true;
+              }
+            } catch (e) {
+              console.warn('Direct decode of comic panel audio failed:', e);
+            }
+          }
+        }
+      }
+
       // 2. Multitrack Audio Mixing (Overlapping sounds and loops)
       if (audioClips.length > 0) {
         for (const aClip of audioClips) {
@@ -1918,6 +1955,19 @@ export const App: React.FC = () => {
         });
       }
 
+      // Pre-seek comic panel video elements to 0
+      if (comicConfig.enabled && comicConfig.panels) {
+        comicConfig.panels.forEach((p) => {
+          const el = document.getElementById('comic-panel-video-' + p.id) as HTMLVideoElement;
+          if (el) {
+            try {
+              el.pause();
+              el.currentTime = 0;
+            } catch (e) {}
+          }
+        });
+      }
+
       const audioInput = hasAudioTrack ? destinationNode : null;
 
       const blob = await videoExporter.recordCanvas(
@@ -1944,6 +1994,20 @@ export const App: React.FC = () => {
           } else if (videoRef.current) {
             videoRef.current.play().catch(console.error);
           }
+
+          // Start playing comic panel videos
+          if (comicConfig.enabled && comicConfig.panels) {
+            comicConfig.panels.forEach((p) => {
+              const el = document.getElementById('comic-panel-video-' + p.id) as HTMLVideoElement;
+              if (el) {
+                try {
+                  el.currentTime = 0;
+                  el.play().catch(() => {});
+                } catch (e) {}
+              }
+            });
+          }
+
           setIsPlaying(true);
         },
         settings
@@ -1960,6 +2024,16 @@ export const App: React.FC = () => {
           } catch (e) {}
         }
       });
+      if (comicConfig.enabled && comicConfig.panels) {
+        comicConfig.panels.forEach((p) => {
+          const el = document.getElementById('comic-panel-video-' + p.id) as HTMLVideoElement;
+          if (el && !el.paused) {
+            try {
+              el.pause();
+            } catch (e) {}
+          }
+        });
+      }
       if (mediaAsset?.type === 'video' && videoRef.current) {
         videoRef.current.pause();
         videoRef.current.muted = isVideoMuted;
@@ -2189,6 +2263,10 @@ export const App: React.FC = () => {
           onOpenRecorder={() => setIsScreenRecorderOpen(true)}
           onOpenSpeeddrawModal={() => setIsSpeeddrawModalOpen(true)}
           onSetClipSpeed={handleSetClipSpeed}
+          comicConfig={comicConfig}
+          setComicConfig={setComicConfig}
+          selectedPanelId={selectedPanelId}
+          setSelectedPanelId={setSelectedPanelId}
         />
 
         {/* Center Live Stage Canvas */}
@@ -2228,6 +2306,10 @@ export const App: React.FC = () => {
           selectedElement={selectedElement}
           setSelectedElement={setSelectedElement}
           exportQuality={currentExportQuality}
+          comicConfig={comicConfig}
+          setComicConfig={setComicConfig}
+          selectedPanelId={selectedPanelId}
+          setSelectedPanelId={setSelectedPanelId}
         />
       </div>
 

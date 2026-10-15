@@ -12,7 +12,8 @@ import type {
   TransitionConfig,
   VideoTransitionType,
   IntroEffectType,
-  OutroEffectType
+  OutroEffectType,
+  ComicConfig
 } from '../types';
 import { 
   Film, 
@@ -36,11 +37,13 @@ import {
   Repeat,
   RefreshCw,
   ChevronLeft,
-  Radio
+  Radio,
+  LayoutGrid
 } from 'lucide-react';
 import { musicPlayer, createSFXBuffer, audioBufferToWavBlob, type SFXPreset } from '../utils/audioSynth';
 import { speechService } from '../utils/speechRecognition';
 import { selfieSegmenter } from '../utils/segmentation';
+import { ComicPanelsTab } from './ComicPanelsTab';
 
 interface LeftSidebarProps {
   className?: string;
@@ -82,9 +85,13 @@ interface LeftSidebarProps {
   onAddTextClip?: (customText?: string) => void;
   onOpenSpeeddrawModal?: () => void;
   onSetClipSpeed?: (clipId: string, speed: number) => void;
+  comicConfig?: ComicConfig;
+  setComicConfig?: React.Dispatch<React.SetStateAction<ComicConfig>>;
+  selectedPanelId?: string | null;
+  setSelectedPanelId?: (id: string | null) => void;
 }
 
-type TabKey = 'media' | 'text' | 'subtitles' | 'music' | 'watermark';
+type TabKey = 'media' | 'text' | 'subtitles' | 'music' | 'watermark' | 'comic';
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   mediaAsset,
@@ -99,6 +106,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   setSubtitles,
   currentTime,
   onSeek,
+  duration,
   onAutoSubtitlesClick,
   onClearText,
   onClearSubtitles,
@@ -121,6 +129,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onAddTextClip,
   onOpenSpeeddrawModal,
   onSetClipSpeed,
+  comicConfig,
+  setComicConfig,
+  selectedPanelId,
+  setSelectedPanelId,
   className,
   onToggleCollapse,
   isCollapsed: _isCollapsed,
@@ -645,6 +657,18 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         >
           <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
           <span>Logo</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('comic')}
+          className={`flex-1 min-w-[56px] sm:min-w-0 flex flex-col items-center py-1.5 sm:py-2 px-1 rounded-xl text-[10px] sm:text-xs font-medium transition ${
+            activeTab === 'comic'
+              ? 'bg-neutral-800 text-rose-400 font-bold shadow'
+              : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+          }`}
+        >
+          <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 sm:mb-1" />
+          <span>Viñetas</span>
         </button>
 
         {onToggleCollapse && (
@@ -3324,6 +3348,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 6: VIÑETAS DE CÓMIC / SPLIT SCREEN                    */}
+        {/* ========================================================= */}
+        {activeTab === 'comic' && comicConfig && setComicConfig && (
+          <ComicPanelsTab
+            comicConfig={comicConfig}
+            setComicConfig={setComicConfig}
+            videoClips={videoClips}
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={onSeek}
+            selectedPanelId={selectedPanelId}
+            setSelectedPanelId={setSelectedPanelId}
+          />
         )}
       </div>
     </aside>
