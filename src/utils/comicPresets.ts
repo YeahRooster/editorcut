@@ -1,4 +1,4 @@
-import type { ComicConfig, ComicLayoutType, ComicPanelItem, VideoClip } from '../types';
+import type { ComicConfig, ComicLayoutType, ComicPanelItem, ComicPage, VideoClip } from '../types';
 
 export interface ComicPresetInfo {
   id: ComicLayoutType;
@@ -10,10 +10,10 @@ export interface ComicPresetInfo {
 
 export const COMIC_PRESET_OPTIONS: ComicPresetInfo[] = [
   {
-    id: 'inset_pip',
-    title: 'Viñeta Flotante / Reacción',
-    description: 'Video principal de fondo con recuadro estilo cómic deslizable en esquina (Ref. 1).',
-    panelCount: 1,
+    id: 'strip_3_horiz',
+    title: 'Tiras Cinematográficas 3',
+    description: '3 bandas horizontales panorámicas apiladas (Arriba, Medio, Abajo).',
+    panelCount: 3,
     badge: 'Popular',
   },
   {
@@ -48,10 +48,17 @@ export const COMIC_PRESET_OPTIONS: ComicPresetInfo[] = [
     panelCount: 4,
   },
   {
-    id: 'strip_3_horiz',
-    title: 'Tiras Cinematográficas 3',
-    description: '3 bandas horizontales panorámicas.',
-    panelCount: 3,
+    id: 'inset_pip',
+    title: 'Viñeta Flotante / Reacción',
+    description: 'Video principal de fondo con recuadro estilo cómic deslizable en esquina (Ref. 1).',
+    panelCount: 1,
+  },
+  {
+    id: 'none',
+    title: '1 Video Normal (Sin Viñetas)',
+    description: 'Muestra el video normal a pantalla completa en esta página o sección.',
+    panelCount: 1,
+    badge: 'Pantalla Completa',
   },
 ];
 
@@ -97,6 +104,67 @@ export function createDefaultComicConfig(): ComicConfig {
     hasShadow: true,
     gutter: 8,
     panels: [],
+    pages: [],
+    activePageIndex: 0,
+  };
+}
+
+export function createComicPage(
+  pageIndex: number,
+  start: number,
+  duration: number,
+  layout: ComicLayoutType,
+  availableClips: VideoClip[] = []
+): ComicPage {
+  const tempConfig = applyComicLayoutPreset(layout, createDefaultComicConfig(), availableClips, pageIndex);
+
+  return {
+    id: `comic-page-${Date.now()}-${pageIndex}-${Math.random().toString(36).substr(2, 4)}`,
+    name: `Página ${pageIndex + 1}`,
+    start: Math.round(start * 10) / 10,
+    duration: duration > 0 ? Math.round(duration * 10) / 10 : 15,
+    layout,
+    transitionToNext: 'slide_left',
+    transitionDuration: 0.6,
+    panels: tempConfig.panels,
+  };
+}
+
+export function ensureComicConfigPages(
+  config: ComicConfig,
+  availableClips: VideoClip[] = [],
+  totalDuration: number = 30
+): ComicConfig {
+  if (config.pages && config.pages.length > 0) {
+    return config;
+  }
+
+  // Calculate duration for page 1 based on clips or timeline
+  let page1Dur = 15;
+  if (availableClips.length >= 3) {
+    const sum3 = availableClips.slice(0, 3).reduce((acc, c) => acc + (c.duration || 5), 0);
+    if (sum3 > 0) page1Dur = Math.round(sum3 * 10) / 10;
+  } else if (totalDuration > 0) {
+    page1Dur = Math.min(15, Math.round(totalDuration * 10) / 10);
+  }
+
+  const p1 = createComicPage(
+    0,
+    0,
+    page1Dur,
+    config.layout && config.layout !== 'none' ? config.layout : 'strip_3_horiz',
+    availableClips
+  );
+  if (config.panels && config.panels.length > 0) {
+    p1.panels = config.panels;
+  }
+
+  return {
+    ...config,
+    pages: [p1],
+    activePageIndex: 0,
+    panels: p1.panels,
+    layout: p1.layout,
   };
 }
 
@@ -106,14 +174,25 @@ export function createDefaultComicConfig(): ComicConfig {
 export function applyComicLayoutPreset(
   layout: ComicLayoutType,
   currentConfig: ComicConfig,
-  availableClips: VideoClip[] = []
+  availableClips: VideoClip[] = [],
+  targetPageIndex?: number
 ): ComicConfig {
+  const pIdx = targetPageIndex !== undefined ? targetPageIndex : (currentConfig.activePageIndex || 0);
+
   if (layout === 'none') {
+    const updatedPages = currentConfig.pages ? [...currentConfig.pages] : [];
+    if (updatedPages[pIdx]) {
+      updatedPages[pIdx] = {
+        ...updatedPages[pIdx],
+        layout: 'none',
+        panels: [],
+      };
+    }
     return {
       ...currentConfig,
-      enabled: false,
       layout: 'none',
       panels: [],
+      pages: updatedPages.length > 0 ? updatedPages : currentConfig.pages,
     };
   }
 
@@ -122,10 +201,13 @@ export function applyComicLayoutPreset(
   const baseBorderRadius = currentConfig.borderRadius ?? 8;
   const baseShadow = currentConfig.hasShadow ?? true;
 
+  const clipOffset = pIdx * 3;
+  const pageClips = (availableClips.length > clipOffset) ? availableClips.slice(clipOffset) : availableClips;
+
   // Helper to pick a clip safely
   const getClipForIndex = (index: number) => {
-    if (!availableClips || availableClips.length === 0) return null;
-    return availableClips[index % availableClips.length];
+    if (!pageClips || pageClips.length === 0) return null;
+    return pageClips[index % pageClips.length];
   };
 
   let newPanels: ComicPanelItem[] = [];
@@ -545,6 +627,22 @@ export function applyComicLayoutPreset(
       newPanels = [];
   }
 
+  if (pIdx > 0 && newPanels.length > 0) {
+    newPanels = newPanels.map((p) => ({
+      ...p,
+      id: `p${pIdx + 1}-${p.id}`,
+    }));
+  }
+
+  const updatedPages = currentConfig.pages ? [...currentConfig.pages] : [];
+  if (updatedPages[pIdx]) {
+    updatedPages[pIdx] = {
+      ...updatedPages[pIdx],
+      layout,
+      panels: newPanels,
+    };
+  }
+
   return {
     ...currentConfig,
     enabled: true,
@@ -554,5 +652,6 @@ export function applyComicLayoutPreset(
     borderRadius: baseBorderRadius,
     hasShadow: baseShadow,
     panels: newPanels,
+    pages: updatedPages.length > 0 ? updatedPages : currentConfig.pages,
   };
 }

@@ -224,6 +224,27 @@ export interface ComicConfig {
   hasShadow: boolean;
   gutter: number; // spacing between panels in px
   panels: ComicPanelItem[];
+  pages?: ComicPage[]; // Multiple comic pages / scenes across the timeline
+  activePageIndex?: number; // Currently selected page in editor
+}
+
+export type ComicPageTransition =
+  | 'none'
+  | 'slide_left'
+  | 'slide_right'
+  | 'slide_up'
+  | 'crossfade'
+  | 'fade_black';
+
+export interface ComicPage {
+  id: string;
+  name: string; // e.g. "Página 1", "Página 2"
+  start: number; // in timeline seconds where this page begins
+  duration: number; // in seconds (0 = persists until end of timeline or next page)
+  layout: ComicLayoutType; // layout type (or 'none' for normal full-screen video!)
+  transitionToNext?: ComicPageTransition; // transition into next page
+  transitionDuration?: number; // in seconds (default 0.6s)
+  panels: ComicPanelItem[];
 }
 
 

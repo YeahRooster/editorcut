@@ -14,7 +14,8 @@ import type {
   TransitionConfig,
   ExportSettings,
   ExportQuality,
-  ComicConfig
+  ComicConfig,
+  ComicPanelItem
 } from './types';
 import { Header } from './components/Header';
 import { LeftSidebar } from './components/LeftSidebar';
@@ -1775,9 +1776,35 @@ export const App: React.FC = () => {
         }
       }
 
-      // 1b. Comic Panels Audio Mixing
-      if (comicConfig.enabled && comicConfig.panels.length > 0) {
-        for (const panel of comicConfig.panels) {
+      // 1b. Comic Panels Audio Mixing across all Pages
+      if (comicConfig.enabled) {
+        const panelsToMix: { panel: ComicPanelItem; timelineStart: number; maxDuration: number }[] = [];
+        if (comicConfig.pages && comicConfig.pages.length > 0) {
+          comicConfig.pages.forEach((page) => {
+            if (page.layout !== 'none' && page.panels) {
+              const pageStart = page.start;
+              const pageDur = page.duration > 0 ? page.duration : (exportDuration - pageStart);
+              page.panels.forEach((p) => {
+                panelsToMix.push({
+                  panel: p,
+                  timelineStart: pageStart + p.start,
+                  maxDuration: p.duration > 0 ? p.duration : pageDur,
+                });
+              });
+            }
+          });
+        } else if (comicConfig.panels) {
+          comicConfig.panels.forEach((p) => {
+            panelsToMix.push({
+              panel: p,
+              timelineStart: p.start,
+              maxDuration: p.duration > 0 ? p.duration : (exportDuration - p.start),
+            });
+          });
+        }
+
+        for (const item of panelsToMix) {
+          const { panel, timelineStart, maxDuration } = item;
           const panelVol = panel.isMuted ? 0 : (panel.volume ?? 0) * effVideoVol;
           if (panel.mediaFile && panelVol > 0) {
             try {
@@ -1791,8 +1818,7 @@ export const App: React.FC = () => {
                 pGain.gain.setValueAtTime(panelVol, 0);
                 pSource.connect(pGain);
                 pGain.connect(destinationNode);
-                const playDur = panel.duration > 0 ? panel.duration : (exportDuration - panel.start);
-                pSource.start(panel.start, 0, Math.max(0.1, playDur));
+                pSource.start(timelineStart, 0, Math.max(0.1, maxDuration));
                 hasAudioTrack = true;
               }
             } catch (e) {
@@ -1957,15 +1983,12 @@ export const App: React.FC = () => {
       }
 
       // Pre-seek comic panel video elements to 0
-      if (comicConfig.enabled && comicConfig.panels) {
-        comicConfig.panels.forEach((p) => {
-          const el = document.getElementById('comic-panel-video-' + p.id) as HTMLVideoElement;
-          if (el) {
-            try {
-              el.pause();
-              el.currentTime = 0;
-            } catch (e) {}
-          }
+      if (comicConfig.enabled) {
+        document.querySelectorAll<HTMLVideoElement>('[id^="comic-panel-video-"]').forEach((el) => {
+          try {
+            el.pause();
+            el.currentTime = 0;
+          } catch (e) {}
         });
       }
 
@@ -1997,15 +2020,12 @@ export const App: React.FC = () => {
           }
 
           // Start playing comic panel videos
-          if (comicConfig.enabled && comicConfig.panels) {
-            comicConfig.panels.forEach((p) => {
-              const el = document.getElementById('comic-panel-video-' + p.id) as HTMLVideoElement;
-              if (el) {
-                try {
-                  el.currentTime = 0;
-                  el.play().catch(() => {});
-                } catch (e) {}
-              }
+          if (comicConfig.enabled) {
+            document.querySelectorAll<HTMLVideoElement>('[id^="comic-panel-video-"]').forEach((el) => {
+              try {
+                el.currentTime = 0;
+                el.play().catch(() => {});
+              } catch (e) {}
             });
           }
 
@@ -2025,10 +2045,9 @@ export const App: React.FC = () => {
           } catch (e) {}
         }
       });
-      if (comicConfig.enabled && comicConfig.panels) {
-        comicConfig.panels.forEach((p) => {
-          const el = document.getElementById('comic-panel-video-' + p.id) as HTMLVideoElement;
-          if (el && !el.paused) {
+      if (comicConfig.enabled) {
+        document.querySelectorAll<HTMLVideoElement>('[id^="comic-panel-video-"]').forEach((el) => {
+          if (!el.paused) {
             try {
               el.pause();
             } catch (e) {}

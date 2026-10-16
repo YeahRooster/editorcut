@@ -10,7 +10,10 @@ import type {
   TransitionConfig,
   TimelineSelection,
   ExportQuality,
-  ComicConfig
+  ComicConfig,
+  ComicPanelItem,
+  ComicPage,
+  ComicPageTransition
 } from '../types';
 import { selfieSegmenter } from '../utils/segmentation';
 import { 
@@ -430,69 +433,94 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       sourceHeight = staticImgRef.current.naturalHeight || cHeight;
     }
 
-    // Synchronize comic panel video playback & audio
-    if (comicConfig?.enabled && comicConfig.panels && comicConfig.panels.length > 0) {
-      comicConfig.panels.forEach((p) => {
-        // If panel follows active timeline cuts, it is rendered directly from activeVideoEl
-        if (p.sourceClipId === 'active_timeline' || p.sourceClipId === 'timeline') {
-          return;
-        }
+    // Synchronize comic panel video playback & audio across pages
+    if (comicConfig?.enabled) {
+      const comicPages: ComicPage[] = (comicConfig.pages && comicConfig.pages.length > 0)
+        ? comicConfig.pages
+        : [{
+            id: 'default-page',
+            name: 'Página 1',
+            start: 0,
+            duration: 0,
+            layout: comicConfig.layout,
+            transitionToNext: 'slide_left',
+            transitionDuration: 0.6,
+            panels: comicConfig.panels || [],
+          }];
 
-        const pVid = comicPanelVideosRef.current.get(p.id);
-        if (!pVid) return;
+      comicPages.forEach((page, pIdx) => {
+        const pageStart = page.start;
+        const pageDur = page.duration > 0 ? page.duration : (duration - pageStart);
+        const pageEnd = pageStart + pageDur;
+        const transDur = Math.min(pageDur / 2, page.transitionDuration ?? 0.6);
 
-        const isPanelVisible =
-          currentTime >= p.start && (p.duration === 0 || currentTime <= p.start + p.duration);
+        // Check if currentTime is within this page, or in transition to/from it
+        const isPageActive =
+          (currentTime >= pageStart && currentTime <= pageEnd) ||
+          (pIdx > 0 && currentTime >= pageStart - transDur && currentTime <= pageStart);
 
-        // Calculate looping and duration bounds to prevent EOF freeze and black canvas choking
-        const isLoop = p.loop !== false;
-        let vidDur = pVid.duration;
-        if (!vidDur || isNaN(vidDur) || !isFinite(vidDur) || vidDur <= 0) {
-          const clipObj = videoClips?.find((c) => c.id === p.sourceClipId);
-          vidDur = clipObj?.duration || 0;
-        }
-
-        let targetTime = Math.max(0, currentTime - p.start);
-        if (vidDur > 0) {
-          if (isLoop) {
-            targetTime = targetTime % vidDur;
-          } else {
-            targetTime = Math.min(targetTime, Math.max(0, vidDur - 0.05));
+        page.panels?.forEach((p) => {
+          if (p.sourceClipId === 'active_timeline' || p.sourceClipId === 'timeline') {
+            return;
           }
-        }
 
-        const effPanelVol = (isMuted || p.isMuted) ? 0 : Math.min(1.0, (p.volume ?? 0) * videoVolume);
+          const pVid = comicPanelVideosRef.current.get(p.id);
+          if (!pVid) return;
 
-        if (pVid.muted !== (effPanelVol === 0)) {
-          pVid.muted = effPanelVol === 0;
-        }
-        if (Math.abs(pVid.volume - effPanelVol) > 0.05) {
-          pVid.volume = effPanelVol;
-        }
+          const panelTimelineStart = pageStart + p.start;
+          const isPanelVisible =
+            isPageActive &&
+            currentTime >= panelTimelineStart &&
+            (p.duration === 0 || currentTime <= panelTimelineStart + p.duration);
 
-        if (!isPlaying || !isPanelVisible) {
-          if (!pVid.paused) {
-            try { pVid.pause(); } catch (e) {}
+          const isLoop = p.loop !== false;
+          let vidDur = pVid.duration;
+          if (!vidDur || isNaN(vidDur) || !isFinite(vidDur) || vidDur <= 0) {
+            const clipObj = videoClips?.find((c) => c.id === p.sourceClipId);
+            vidDur = clipObj?.duration || 0;
           }
-          if (isPanelVisible && Math.abs(pVid.currentTime - targetTime) > 0.06) {
-            try { pVid.currentTime = targetTime; } catch (e) {}
+
+          let targetTime = Math.max(0, currentTime - panelTimelineStart);
+          if (vidDur > 0) {
+            if (isLoop) {
+              targetTime = targetTime % vidDur;
+            } else {
+              targetTime = Math.min(targetTime, Math.max(0, vidDur - 0.05));
+            }
           }
-        } else {
-          // If video ended and should loop, reset smoothly
-          if (pVid.ended && isLoop) {
-            try {
-              pVid.currentTime = 0;
-              pVid.play().catch(() => {});
-            } catch (e) {}
-          } else {
-            if (Math.abs(pVid.currentTime - targetTime) > 0.4) {
+
+          const effPanelVol = (isMuted || p.isMuted) ? 0 : Math.min(1.0, (p.volume ?? 0) * videoVolume);
+
+          if (pVid.muted !== (effPanelVol === 0)) {
+            pVid.muted = effPanelVol === 0;
+          }
+          if (Math.abs(pVid.volume - effPanelVol) > 0.05) {
+            pVid.volume = effPanelVol;
+          }
+
+          if (!isPlaying || !isPanelVisible) {
+            if (!pVid.paused) {
+              try { pVid.pause(); } catch (e) {}
+            }
+            if (isPanelVisible && Math.abs(pVid.currentTime - targetTime) > 0.06) {
               try { pVid.currentTime = targetTime; } catch (e) {}
             }
-            if (pVid.paused && (!pVid.ended || isLoop)) {
-              pVid.play().catch(() => {});
+          } else {
+            if (pVid.ended && isLoop) {
+              try {
+                pVid.currentTime = 0;
+                pVid.play().catch(() => {});
+              } catch (e) {}
+            } else {
+              if (Math.abs(pVid.currentTime - targetTime) > 0.4) {
+                try { pVid.currentTime = targetTime; } catch (e) {}
+              }
+              if (pVid.paused && (!pVid.ended || isLoop)) {
+                pVid.play().catch(() => {});
+              }
             }
           }
-        }
+        });
       });
     }
 
@@ -663,203 +691,304 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
 
     // -------------------------------------------------------------
-    // LAYER: COMIC PANELS / VIÑETAS DE CÓMIC & SPLIT SCREEN
+    // LAYER: COMIC PANELS / VIÑETAS DE CÓMIC & SPLIT SCREEN (MULTI-PAGE & TRANSITIONS)
     // -------------------------------------------------------------
-    if (comicConfig?.enabled && comicConfig.layout !== 'none' && comicConfig.panels.length > 0) {
-      // If multi-panel split, fill entire background with comic border color for clean gutters
-      if (comicConfig.layout !== 'inset_pip') {
-        ctx.fillStyle = comicConfig.borderColor || '#000000';
-        ctx.fillRect(0, 0, cWidth, cHeight);
-      }
+    if (comicConfig?.enabled) {
+      const comicPages: ComicPage[] = (comicConfig.pages && comicConfig.pages.length > 0)
+        ? comicConfig.pages
+        : [{
+            id: 'default-page',
+            name: 'Página 1',
+            start: 0,
+            duration: 0,
+            layout: comicConfig.layout,
+            transitionToNext: 'slide_left',
+            transitionDuration: 0.6,
+            panels: comicConfig.panels || [],
+          }];
 
-      comicConfig.panels.forEach((panel, pIdx) => {
-        const isPanelVisible =
-          currentTime >= panel.start &&
-          (panel.duration === 0 || currentTime <= panel.start + panel.duration);
-
-        // In edit mode (not exporting), allow seeing panel outlines even if timing hasn't triggered yet
-        if (!isPanelVisible && (isExporting || selectedPanelId !== panel.id)) {
+      const drawSingleComicPage = (
+        page: ComicPage,
+        offsetX: number = 0,
+        offsetY: number = 0,
+        pageAlpha: number = 1
+      ) => {
+        if (!page || page.layout === 'none' || !page.panels || page.panels.length === 0) {
           return;
         }
 
-        const px = panel.x * cWidth;
-        const py = panel.y * cHeight;
-        const pw = panel.width * cWidth;
-        const ph = panel.height * cHeight;
-
-        // Calculate entrance slide / zoom / fade animation
-        const timeFromStart = Math.max(0, currentTime - panel.start);
-        const animDur = Math.max(0.1, panel.animationDuration || 0.5);
-        const animProgress = Math.min(1, timeFromStart / animDur);
-        const ease = 1 - Math.pow(1 - animProgress, 3);
-
-        let animOffsetX = 0;
-        let animOffsetY = 0;
-        let animScale = 1;
-        let animOpacity = isPanelVisible ? 1 : 0.35;
-
-        if (isPanelVisible && panel.animation !== 'none') {
-          if (panel.animation === 'slide_bottom') {
-            animOffsetY = (1 - ease) * (cHeight * 0.45);
-            animOpacity = Math.min(1, ease * 1.5);
-          } else if (panel.animation === 'slide_top') {
-            animOffsetY = -(1 - ease) * (cHeight * 0.45);
-            animOpacity = Math.min(1, ease * 1.5);
-          } else if (panel.animation === 'slide_left') {
-            animOffsetX = -(1 - ease) * (cWidth * 0.45);
-            animOpacity = Math.min(1, ease * 1.5);
-          } else if (panel.animation === 'slide_right') {
-            animOffsetX = (1 - ease) * (cWidth * 0.45);
-            animOpacity = Math.min(1, ease * 1.5);
-          } else if (panel.animation === 'pop_zoom') {
-            animScale = 0.4 + 0.6 * ease;
-            animOpacity = ease;
-          } else if (panel.animation === 'fade') {
-            animOpacity = ease;
-          }
-        }
-
         ctx.save();
-        ctx.globalAlpha = animOpacity;
-
-        if (animOffsetX !== 0 || animOffsetY !== 0) {
-          ctx.translate(animOffsetX, animOffsetY);
+        ctx.globalAlpha = Math.max(0, Math.min(1, pageAlpha));
+        if (offsetX !== 0 || offsetY !== 0) {
+          ctx.translate(offsetX, offsetY);
         }
 
-        if (animScale !== 1) {
-          const cx = px + pw / 2;
-          const cy = py + ph / 2;
-          ctx.translate(cx, cy);
-          ctx.scale(animScale, animScale);
-          ctx.translate(-cx, -cy);
+        // Fill background with comic border color for clean gutters
+        if (page.layout !== 'inset_pip') {
+          ctx.fillStyle = comicConfig.borderColor || '#000000';
+          ctx.fillRect(0, 0, cWidth, cHeight);
         }
 
-        const radius = Math.max(0, Math.min(comicConfig.borderRadius || 0, Math.min(pw, ph) / 2));
+        const pageTimelineStart = page.start;
 
-        // Draw Comic Drop Shadow (for 3D Pop / Floating effect)
-        if (comicConfig.hasShadow && isPanelVisible) {
+        page.panels.forEach((panel, pIdx) => {
+          const panelTimelineStart = pageTimelineStart + panel.start;
+          const isPanelVisible =
+            currentTime >= panelTimelineStart &&
+            (panel.duration === 0 || currentTime <= panelTimelineStart + panel.duration);
+
+          // In edit mode (not exporting), allow seeing panel outlines even if timing hasn't triggered yet
+          if (!isPanelVisible && (isExporting || selectedPanelId !== panel.id)) {
+            return;
+          }
+
+          const px = panel.x * cWidth;
+          const py = panel.y * cHeight;
+          const pw = panel.width * cWidth;
+          const ph = panel.height * cHeight;
+
+          // Calculate entrance slide / zoom / fade animation within the page
+          const timeFromStart = Math.max(0, currentTime - panelTimelineStart);
+          const animDur = Math.max(0.1, panel.animationDuration || 0.5);
+          const animProgress = Math.min(1, timeFromStart / animDur);
+          const ease = 1 - Math.pow(1 - animProgress, 3);
+
+          let animOffsetX = 0;
+          let animOffsetY = 0;
+          let animScale = 1;
+          let animOpacity = isPanelVisible ? 1 : 0.35;
+
+          if (isPanelVisible && panel.animation !== 'none') {
+            if (panel.animation === 'slide_bottom') {
+              animOffsetY = (1 - ease) * (cHeight * 0.45);
+              animOpacity = Math.min(1, ease * 1.5);
+            } else if (panel.animation === 'slide_top') {
+              animOffsetY = -(1 - ease) * (cHeight * 0.45);
+              animOpacity = Math.min(1, ease * 1.5);
+            } else if (panel.animation === 'slide_left') {
+              animOffsetX = -(1 - ease) * (cWidth * 0.45);
+              animOpacity = Math.min(1, ease * 1.5);
+            } else if (panel.animation === 'slide_right') {
+              animOffsetX = (1 - ease) * (cWidth * 0.45);
+              animOpacity = Math.min(1, ease * 1.5);
+            } else if (panel.animation === 'pop_zoom') {
+              animScale = 0.4 + 0.6 * ease;
+              animOpacity = ease;
+            } else if (panel.animation === 'fade') {
+              animOpacity = ease;
+            }
+          }
+
           ctx.save();
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-          ctx.shadowBlur = 20;
-          ctx.shadowOffsetX = 4;
-          ctx.shadowOffsetY = 8;
-          ctx.fillStyle = '#000000';
+          ctx.globalAlpha = Math.max(0, Math.min(1, ctx.globalAlpha * animOpacity));
+
+          if (animOffsetX !== 0 || animOffsetY !== 0) {
+            ctx.translate(animOffsetX, animOffsetY);
+          }
+
+          if (animScale !== 1) {
+            const cx = px + pw / 2;
+            const cy = py + ph / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(animScale, animScale);
+            ctx.translate(-cx, -cy);
+          }
+
+          const radius = Math.max(0, Math.min(comicConfig.borderRadius || 0, Math.min(pw, ph) / 2));
+
+          // Draw Comic Drop Shadow (for 3D Pop / Floating effect)
+          if (comicConfig.hasShadow && isPanelVisible) {
+            ctx.save();
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 4;
+            ctx.shadowOffsetY = 8;
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.roundRect(px, py, pw, ph, radius);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // Clip panel viewport for media drawing
+          ctx.save();
           ctx.beginPath();
           ctx.roundRect(px, py, pw, ph, radius);
-          ctx.fill();
-          ctx.restore();
-        }
+          ctx.clip();
 
-        // Clip panel viewport for media drawing
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(px, py, pw, ph, radius);
-        ctx.clip();
-
-        // Dark background inside panel
-        ctx.fillStyle = '#171717';
-        ctx.fillRect(px, py, pw, ph);
-
-        // Resolve panel media source
-        let panelVideoEl: HTMLVideoElement | null | undefined = null;
-        if (panel.sourceClipId === 'active_timeline' || panel.sourceClipId === 'timeline') {
-          // Dynamically track whatever clip is playing on the timeline as it cuts from clip to clip!
-          panelVideoEl = (activeSource instanceof HTMLVideoElement ? activeSource : activeVideoEl) || null;
-        } else {
-          panelVideoEl = comicPanelVideosRef.current.get(panel.id);
-          if (!panelVideoEl && panel.sourceClipId) {
-            panelVideoEl = clipVideosRef.current.get(panel.sourceClipId);
-          }
-          if (!panelVideoEl && pIdx === 0 && activeSource && activeSource instanceof HTMLVideoElement) {
-            panelVideoEl = activeVideoEl;
-          }
-        }
-
-        const panelImgEl = comicPanelImagesRef.current.get(panel.id);
-
-        if (panelVideoEl && panelVideoEl.videoWidth > 0 && panelVideoEl.videoHeight > 0) {
-          const sW = panelVideoEl.videoWidth;
-          const sH = panelVideoEl.videoHeight;
-          const r = Math.max(pw / sW, ph / sH);
-          const dW = sW * r;
-          const dH = sH * r;
-          const dX = px + (pw - dW) / 2;
-          const dY = py + (ph - dH) / 2;
-          ctx.drawImage(panelVideoEl, 0, 0, sW, sH, dX, dY, dW, dH);
-        } else if (panelImgEl && panelImgEl.naturalWidth > 0 && panelImgEl.naturalHeight > 0) {
-          const sW = panelImgEl.naturalWidth;
-          const sH = panelImgEl.naturalHeight;
-          const r = Math.max(pw / sW, ph / sH);
-          const dW = sW * r;
-          const dH = sH * r;
-          const dX = px + (pw - dW) / 2;
-          const dY = py + (ph - dH) / 2;
-          ctx.drawImage(panelImgEl, 0, 0, sW, sH, dX, dY, dW, dH);
-        } else if (staticImgRef.current && pIdx === 0) {
-          const sW = staticImgRef.current.naturalWidth;
-          const sH = staticImgRef.current.naturalHeight;
-          const r = Math.max(pw / sW, ph / sH);
-          const dW = sW * r;
-          const dH = sH * r;
-          const dX = px + (pw - dW) / 2;
-          const dY = py + (ph - dH) / 2;
-          ctx.drawImage(staticImgRef.current, 0, 0, sW, sH, dX, dY, dW, dH);
-        } else {
-          // Placeholder inside panel
-          ctx.fillStyle = '#222222';
+          // Dark background inside panel
+          ctx.fillStyle = '#171717';
           ctx.fillRect(px, py, pw, ph);
-          ctx.fillStyle = '#888888';
-          ctx.font = 'bold 22px Inter, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(panel.name || `Viñeta ${pIdx + 1}`, px + pw / 2, py + ph / 2);
+
+          // Resolve panel media source
+          let panelVideoEl: HTMLVideoElement | null | undefined = null;
+          if (panel.sourceClipId === 'active_timeline' || panel.sourceClipId === 'timeline') {
+            panelVideoEl = (activeSource instanceof HTMLVideoElement ? activeSource : activeVideoEl) || null;
+          } else {
+            panelVideoEl = comicPanelVideosRef.current.get(panel.id);
+            if (!panelVideoEl && panel.sourceClipId) {
+              panelVideoEl = clipVideosRef.current.get(panel.sourceClipId);
+            }
+            if (!panelVideoEl && pIdx === 0 && activeSource && activeSource instanceof HTMLVideoElement) {
+              panelVideoEl = activeVideoEl;
+            }
+          }
+
+          const panelImgEl = comicPanelImagesRef.current.get(panel.id);
+
+          if (panelVideoEl && panelVideoEl.videoWidth > 0 && panelVideoEl.videoHeight > 0) {
+            const sW = panelVideoEl.videoWidth;
+            const sH = panelVideoEl.videoHeight;
+            const r = Math.max(pw / sW, ph / sH);
+            const dW = sW * r;
+            const dH = sH * r;
+            const dX = px + (pw - dW) / 2;
+            const dY = py + (ph - dH) / 2;
+            ctx.drawImage(panelVideoEl, 0, 0, sW, sH, dX, dY, dW, dH);
+          } else if (panelImgEl && panelImgEl.naturalWidth > 0 && panelImgEl.naturalHeight > 0) {
+            const sW = panelImgEl.naturalWidth;
+            const sH = panelImgEl.naturalHeight;
+            const r = Math.max(pw / sW, ph / sH);
+            const dW = sW * r;
+            const dH = sH * r;
+            const dX = px + (pw - dW) / 2;
+            const dY = py + (ph - dH) / 2;
+            ctx.drawImage(panelImgEl, 0, 0, sW, sH, dX, dY, dW, dH);
+          } else if (staticImgRef.current && pIdx === 0) {
+            const sW = staticImgRef.current.naturalWidth;
+            const sH = staticImgRef.current.naturalHeight;
+            const r = Math.max(pw / sW, ph / sH);
+            const dW = sW * r;
+            const dH = sH * r;
+            const dX = px + (pw - dW) / 2;
+            const dY = py + (ph - dH) / 2;
+            ctx.drawImage(staticImgRef.current, 0, 0, sW, sH, dX, dY, dW, dH);
+          } else {
+            // Placeholder inside panel
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(px, py, pw, ph);
+            ctx.fillStyle = '#888888';
+            ctx.font = 'bold 22px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(panel.name || `Viñeta ${pIdx + 1}`, px + pw / 2, py + ph / 2);
+          }
+
+          ctx.restore(); // Restore clip
+
+          // Draw Comic Border Frame
+          const bWidth = comicConfig.borderWidth ?? 6;
+          if (bWidth > 0) {
+            ctx.strokeStyle = comicConfig.borderColor || '#000000';
+            ctx.lineWidth = bWidth;
+            ctx.beginPath();
+            ctx.roundRect(px, py, pw, ph, radius);
+            ctx.stroke();
+          }
+
+          // Interactive bounding box when selected in editor (NEVER during export)
+          const isInteractingPanel =
+            !isExporting &&
+            (selectedPanelId === panel.id ||
+              hoveredElement === 'comic_panel' ||
+              dragMode === 'comic_panel_move');
+
+          if (isInteractingPanel && selectedPanelId === panel.id) {
+            ctx.strokeStyle = '#f43f5e';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([6, 4]);
+            ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
+            ctx.setLineDash([]);
+
+            const titleText = `📐 ${panel.name || `Viñeta ${pIdx + 1}`}`;
+            ctx.font = '700 14px Inter, sans-serif';
+            const txtWidth = ctx.measureText(titleText).width;
+            const badgeY = py > 30 ? py - 26 : py + 8;
+            const badgeX = px + 6;
+
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.95)';
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, txtWidth + 14, 22, 6);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(titleText, badgeX + 7, badgeY + 11);
+          }
+
+          ctx.restore(); // Restore transform & alpha
+        });
+
+        ctx.restore();
+      };
+
+      // Determine active page and page transition state
+      let activePage: ComicPage | null = null;
+      let transitionState: {
+        pageFrom: ComicPage;
+        pageTo: ComicPage | null;
+        progress: number;
+        transition: ComicPageTransition;
+      } | null = null;
+
+      for (let i = 0; i < comicPages.length; i++) {
+        const page = comicPages[i];
+        const pageStart = page.start;
+        const pageDur = page.duration > 0 ? page.duration : (duration - pageStart);
+        const pageEnd = pageStart + pageDur;
+        const nextPage = i + 1 < comicPages.length ? comicPages[i + 1] : null;
+        const transDur = Math.min(pageDur / 2, page.transitionDuration ?? 0.6);
+
+        // Check if we are in transition into the next page (or exiting to normal video)
+        if (currentTime >= pageEnd - transDur && currentTime < pageEnd) {
+          const progress = Math.min(1, Math.max(0, (currentTime - (pageEnd - transDur)) / transDur));
+          transitionState = {
+            pageFrom: page,
+            pageTo: nextPage,
+            progress,
+            transition: page.transitionToNext || 'slide_left',
+          };
+          break;
         }
 
-        ctx.restore(); // Restore clip
-
-        // Draw Comic Border Frame
-        const bWidth = comicConfig.borderWidth ?? 6;
-        if (bWidth > 0) {
-          ctx.strokeStyle = comicConfig.borderColor || '#000000';
-          ctx.lineWidth = bWidth;
-          ctx.beginPath();
-          ctx.roundRect(px, py, pw, ph, radius);
-          ctx.stroke();
+        // Inside this page
+        if (currentTime >= pageStart && currentTime < pageEnd) {
+          activePage = page;
+          break;
         }
+      }
 
-        // Interactive bounding box when selected in editor (NEVER during export)
-        const isInteractingPanel =
-          !isExporting &&
-          (selectedPanelId === panel.id ||
-            hoveredElement === 'comic_panel' ||
-            dragMode === 'comic_panel_move');
+      // Render either transition animation or current active page
+      if (transitionState) {
+        const { pageFrom, pageTo, progress, transition } = transitionState;
+        const ease = 1 - Math.pow(1 - progress, 3);
 
-        if (isInteractingPanel && selectedPanelId === panel.id) {
-          ctx.strokeStyle = '#f43f5e';
-          ctx.lineWidth = 2.5;
-          ctx.setLineDash([6, 4]);
-          ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
-          ctx.setLineDash([]);
-
-          const titleText = `📐 ${panel.name || `Viñeta ${pIdx + 1}`}`;
-          ctx.font = '700 14px Inter, sans-serif';
-          const txtWidth = ctx.measureText(titleText).width;
-          const badgeY = py > 30 ? py - 26 : py + 8;
-          const badgeX = px + 6;
-
-          ctx.fillStyle = 'rgba(244, 63, 94, 0.95)';
-          ctx.beginPath();
-          ctx.roundRect(badgeX, badgeY, txtWidth + 14, 22, 6);
-          ctx.fill();
-
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(titleText, badgeX + 7, badgeY + 11);
+        if (transition === 'slide_left') {
+          drawSingleComicPage(pageFrom, -ease * cWidth, 0, 1);
+          if (pageTo) drawSingleComicPage(pageTo, (1 - ease) * cWidth, 0, 1);
+        } else if (transition === 'slide_right') {
+          drawSingleComicPage(pageFrom, ease * cWidth, 0, 1);
+          if (pageTo) drawSingleComicPage(pageTo, -(1 - ease) * cWidth, 0, 1);
+        } else if (transition === 'slide_up') {
+          drawSingleComicPage(pageFrom, 0, -ease * cHeight, 1);
+          if (pageTo) drawSingleComicPage(pageTo, 0, (1 - ease) * cHeight, 1);
+        } else if (transition === 'crossfade') {
+          drawSingleComicPage(pageFrom, 0, 0, 1 - ease);
+          if (pageTo) drawSingleComicPage(pageTo, 0, 0, ease);
+        } else if (transition === 'fade_black') {
+          if (progress < 0.5) {
+            drawSingleComicPage(pageFrom, 0, 0, 1 - progress * 2);
+          } else if (pageTo) {
+            drawSingleComicPage(pageTo, 0, 0, (progress - 0.5) * 2);
+          }
+        } else {
+          // 'none' - direct cut halfway
+          drawSingleComicPage(progress < 0.5 ? pageFrom : (pageTo || pageFrom), 0, 0, 1);
         }
-
-        ctx.restore(); // Restore transform & alpha
-      });
+      } else if (activePage) {
+        drawSingleComicPage(activePage, 0, 0, 1);
+      }
     }
 
     // -------------------------------------------------------------
@@ -1703,33 +1832,54 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       }
     }
 
-    // 6. Check Comic Panels (Reverse order so top/inset panel gets hit first)
-    if (comicConfig?.enabled && comicConfig.panels && comicConfig.panels.length > 0) {
-      for (const panel of [...comicConfig.panels].reverse()) {
-        const isPanelVisible =
-          currentTime >= panel.start &&
-          (panel.duration === 0 || currentTime <= panel.start + panel.duration);
-        if (!isPanelVisible && selectedPanelId !== panel.id) continue;
+    // 6. Check Comic Panels (Active comic page)
+    if (comicConfig?.enabled) {
+      const comicPages: ComicPage[] = (comicConfig.pages && comicConfig.pages.length > 0)
+        ? comicConfig.pages
+        : [{
+            id: 'default-page',
+            name: 'Página 1',
+            start: 0,
+            duration: 0,
+            layout: comicConfig.layout,
+            transitionToNext: 'slide_left',
+            transitionDuration: 0.6,
+            panels: comicConfig.panels || [],
+          }];
 
-        const px = panel.x * 100;
-        const py = panel.y * 100;
-        const pw = panel.width * 100;
-        const ph = panel.height * 100;
+      const activePage = comicPages.find((page) => {
+        const pageDur = page.duration > 0 ? page.duration : (duration - page.start);
+        return currentTime >= page.start && currentTime <= page.start + pageDur;
+      });
 
-        if (xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph) {
-          (e.target as HTMLElement).setPointerCapture(e.pointerId);
-          setSelectedPanelId?.(panel.id);
-          setSelectedElement?.('none');
+      if (activePage && activePage.layout !== 'none' && activePage.panels) {
+        for (const panel of [...activePage.panels].reverse()) {
+          const panelTimelineStart = activePage.start + panel.start;
+          const isPanelVisible =
+            currentTime >= panelTimelineStart &&
+            (panel.duration === 0 || currentTime <= panelTimelineStart + panel.duration);
+          if (!isPanelVisible && selectedPanelId !== panel.id) continue;
 
-          if (comicConfig.layout === 'inset_pip') {
-            setDragMode('comic_panel_move');
-            setDraggedPanelId(panel.id);
-            setDragOffset({
-              x: xPct - px,
-              y: yPct - py,
-            });
+          const px = panel.x * 100;
+          const py = panel.y * 100;
+          const pw = panel.width * 100;
+          const ph = panel.height * 100;
+
+          if (xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph) {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            setSelectedPanelId?.(panel.id);
+            setSelectedElement?.('none');
+
+            if (activePage.layout === 'inset_pip') {
+              setDragMode('comic_panel_move');
+              setDraggedPanelId(panel.id);
+              setDragOffset({
+                x: xPct - px,
+                y: yPct - py,
+              });
+            }
+            return;
           }
-          return;
         }
       }
     }
@@ -1779,18 +1929,40 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         setHoveredElement('title');
       } else if (
         comicConfig?.enabled &&
-        comicConfig.panels &&
-        comicConfig.panels.length > 0 &&
-        comicConfig.panels.some((p) => {
-          const isPanelVisible =
-            currentTime >= p.start && (p.duration === 0 || currentTime <= p.start + p.duration);
-          if (!isPanelVisible && selectedPanelId !== p.id) return false;
-          const px = p.x * 100;
-          const py = p.y * 100;
-          const pw = p.width * 100;
-          const ph = p.height * 100;
-          return xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph;
-        })
+        (() => {
+          const comicPages: ComicPage[] = (comicConfig.pages && comicConfig.pages.length > 0)
+            ? comicConfig.pages
+            : [{
+                id: 'default-page',
+                name: 'Página 1',
+                start: 0,
+                duration: 0,
+                layout: comicConfig.layout,
+                transitionToNext: 'slide_left',
+                transitionDuration: 0.6,
+                panels: comicConfig.panels || [],
+              }];
+
+          const activePage = comicPages.find((page) => {
+            const pageDur = page.duration > 0 ? page.duration : (duration - page.start);
+            return currentTime >= page.start && currentTime <= page.start + pageDur;
+          });
+
+          if (!activePage || activePage.layout === 'none' || !activePage.panels) return false;
+
+          return activePage.panels.some((p) => {
+            const panelTimelineStart = activePage.start + p.start;
+            const isPanelVisible =
+              currentTime >= panelTimelineStart &&
+              (p.duration === 0 || currentTime <= panelTimelineStart + p.duration);
+            if (!isPanelVisible && selectedPanelId !== p.id) return false;
+            const px = p.x * 100;
+            const py = p.y * 100;
+            const pw = p.width * 100;
+            const ph = p.height * 100;
+            return xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph;
+          });
+        })()
       ) {
         setHoveredElement('comic_panel');
       } else {
@@ -2026,31 +2198,46 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         )
       )}
 
-      {/* Hidden Video Player Elements for Comic Panels */}
+      {/* Hidden Video Player Elements for Comic Panels across all Pages */}
       {comicConfig?.enabled &&
-        comicConfig.panels.map((p) => {
-          if (!p.mediaUrl || p.mediaType !== 'video') return null;
-          return (
-            <video
-              key={`comic-panel-vid-${p.id}`}
-              id={`comic-panel-video-${p.id}`}
-              ref={(el) => {
-                if (el) {
-                  comicPanelVideosRef.current.set(p.id, el);
-                } else {
-                  comicPanelVideosRef.current.delete(p.id);
+        (() => {
+          const allPanels: ComicPanelItem[] = [];
+          if (comicConfig.pages && comicConfig.pages.length > 0) {
+            comicConfig.pages.forEach((page) => {
+              page.panels?.forEach((p) => {
+                if (!allPanels.some((item) => item.id === p.id)) {
+                  allPanels.push(p);
                 }
-              }}
-              src={p.mediaUrl}
-              className="hidden"
-              playsInline
-              preload="auto"
-              crossOrigin="anonymous"
-              loop={p.loop !== false}
-              muted={p.isMuted || isMuted || (p.volume ?? 0) <= 0}
-            />
-          );
-        })}
+              });
+            });
+          } else if (comicConfig.panels) {
+            allPanels.push(...comicConfig.panels);
+          }
+
+          return allPanels.map((p) => {
+            if (!p.mediaUrl || p.mediaType !== 'video') return null;
+            return (
+              <video
+                key={`comic-panel-vid-${p.id}`}
+                id={`comic-panel-video-${p.id}`}
+                ref={(el) => {
+                  if (el) {
+                    comicPanelVideosRef.current.set(p.id, el);
+                  } else {
+                    comicPanelVideosRef.current.delete(p.id);
+                  }
+                }}
+                src={p.mediaUrl}
+                className="hidden"
+                playsInline
+                preload="auto"
+                crossOrigin="anonymous"
+                loop={p.loop !== false}
+                muted={p.isMuted || isMuted || (p.volume ?? 0) <= 0}
+              />
+            );
+          });
+        })()}
 
       {/* Center Canvas Viewport */}
       <div className="flex-1 min-h-0 relative group flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900/50 max-w-full">
