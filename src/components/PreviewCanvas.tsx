@@ -433,12 +433,34 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // Synchronize comic panel video playback & audio
     if (comicConfig?.enabled && comicConfig.panels && comicConfig.panels.length > 0) {
       comicConfig.panels.forEach((p) => {
+        // If panel follows active timeline cuts, it is rendered directly from activeVideoEl
+        if (p.sourceClipId === 'active_timeline' || p.sourceClipId === 'timeline') {
+          return;
+        }
+
         const pVid = comicPanelVideosRef.current.get(p.id);
         if (!pVid) return;
 
         const isPanelVisible =
           currentTime >= p.start && (p.duration === 0 || currentTime <= p.start + p.duration);
-        const relTime = Math.max(0, currentTime - p.start);
+
+        // Calculate looping and duration bounds to prevent EOF freeze and black canvas choking
+        const isLoop = p.loop !== false;
+        let vidDur = pVid.duration;
+        if (!vidDur || isNaN(vidDur) || !isFinite(vidDur) || vidDur <= 0) {
+          const clipObj = videoClips?.find((c) => c.id === p.sourceClipId);
+          vidDur = clipObj?.duration || 0;
+        }
+
+        let targetTime = Math.max(0, currentTime - p.start);
+        if (vidDur > 0) {
+          if (isLoop) {
+            targetTime = targetTime % vidDur;
+          } else {
+            targetTime = Math.min(targetTime, Math.max(0, vidDur - 0.05));
+          }
+        }
+
         const effPanelVol = (isMuted || p.isMuted) ? 0 : Math.min(1.0, (p.volume ?? 0) * videoVolume);
 
         if (pVid.muted !== (effPanelVol === 0)) {
@@ -452,15 +474,23 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           if (!pVid.paused) {
             try { pVid.pause(); } catch (e) {}
           }
-          if (isPanelVisible && Math.abs(pVid.currentTime - relTime) > 0.06) {
-            try { pVid.currentTime = relTime; } catch (e) {}
+          if (isPanelVisible && Math.abs(pVid.currentTime - targetTime) > 0.06) {
+            try { pVid.currentTime = targetTime; } catch (e) {}
           }
         } else {
-          if (Math.abs(pVid.currentTime - relTime) > 0.35) {
-            try { pVid.currentTime = relTime; } catch (e) {}
-          }
-          if (pVid.paused) {
-            pVid.play().catch(() => {});
+          // If video ended and should loop, reset smoothly
+          if (pVid.ended && isLoop) {
+            try {
+              pVid.currentTime = 0;
+              pVid.play().catch(() => {});
+            } catch (e) {}
+          } else {
+            if (Math.abs(pVid.currentTime - targetTime) > 0.4) {
+              try { pVid.currentTime = targetTime; } catch (e) {}
+            }
+            if (pVid.paused && (!pVid.ended || isLoop)) {
+              pVid.play().catch(() => {});
+            }
           }
         }
       });
@@ -731,12 +761,18 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         ctx.fillRect(px, py, pw, ph);
 
         // Resolve panel media source
-        let panelVideoEl: HTMLVideoElement | null | undefined = comicPanelVideosRef.current.get(panel.id);
-        if (!panelVideoEl && panel.sourceClipId) {
-          panelVideoEl = clipVideosRef.current.get(panel.sourceClipId);
-        }
-        if (!panelVideoEl && pIdx === 0 && activeSource && activeSource instanceof HTMLVideoElement) {
-          panelVideoEl = activeVideoEl;
+        let panelVideoEl: HTMLVideoElement | null | undefined = null;
+        if (panel.sourceClipId === 'active_timeline' || panel.sourceClipId === 'timeline') {
+          // Dynamically track whatever clip is playing on the timeline as it cuts from clip to clip!
+          panelVideoEl = (activeSource instanceof HTMLVideoElement ? activeSource : activeVideoEl) || null;
+        } else {
+          panelVideoEl = comicPanelVideosRef.current.get(panel.id);
+          if (!panelVideoEl && panel.sourceClipId) {
+            panelVideoEl = clipVideosRef.current.get(panel.sourceClipId);
+          }
+          if (!panelVideoEl && pIdx === 0 && activeSource && activeSource instanceof HTMLVideoElement) {
+            panelVideoEl = activeVideoEl;
+          }
         }
 
         const panelImgEl = comicPanelImagesRef.current.get(panel.id);
@@ -805,11 +841,21 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
           ctx.setLineDash([]);
 
-          ctx.fillStyle = '#f43f5e';
-          ctx.font = '700 16px Inter, sans-serif';
+          const titleText = `📐 ${panel.name || `Viñeta ${pIdx + 1}`}`;
+          ctx.font = '700 14px Inter, sans-serif';
+          const txtWidth = ctx.measureText(titleText).width;
+          const badgeY = py > 30 ? py - 26 : py + 8;
+          const badgeX = px + 6;
+
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.95)';
+          ctx.beginPath();
+          ctx.roundRect(badgeX, badgeY, txtWidth + 14, 22, 6);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'left';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(`📐 ${panel.name || `Viñeta ${pIdx + 1}`}`, px, py - 6);
+          ctx.textBaseline = 'middle';
+          ctx.fillText(titleText, badgeX + 7, badgeY + 11);
         }
 
         ctx.restore(); // Restore transform & alpha
@@ -1733,17 +1779,18 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         setHoveredElement('title');
       } else if (
         comicConfig?.enabled &&
-        comicConfig.layout === 'inset_pip' &&
+        comicConfig.panels &&
         comicConfig.panels.length > 0 &&
-        (() => {
-          const inset = comicConfig.panels[0];
-          if (!inset) return false;
-          const px = inset.x * 100;
-          const py = inset.y * 100;
-          const pw = inset.width * 100;
-          const ph = inset.height * 100;
+        comicConfig.panels.some((p) => {
+          const isPanelVisible =
+            currentTime >= p.start && (p.duration === 0 || currentTime <= p.start + p.duration);
+          if (!isPanelVisible && selectedPanelId !== p.id) return false;
+          const px = p.x * 100;
+          const py = p.y * 100;
+          const pw = p.width * 100;
+          const ph = p.height * 100;
           return xPct >= px && xPct <= px + pw && yPct >= py && yPct <= py + ph;
-        })()
+        })
       ) {
         setHoveredElement('comic_panel');
       } else {
@@ -1999,6 +2046,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               playsInline
               preload="auto"
               crossOrigin="anonymous"
+              loop={p.loop !== false}
               muted={p.isMuted || isMuted || (p.volume ?? 0) <= 0}
             />
           );

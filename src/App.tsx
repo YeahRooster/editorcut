@@ -1786,6 +1786,7 @@ export const App: React.FC = () => {
               if (pAudioBuf && pAudioBuf.numberOfChannels > 0) {
                 const pSource = exportAudioCtx.createBufferSource();
                 pSource.buffer = pAudioBuf;
+                pSource.loop = panel.loop !== false;
                 const pGain = exportAudioCtx.createGain();
                 pGain.gain.setValueAtTime(panelVol, 0);
                 pSource.connect(pGain);

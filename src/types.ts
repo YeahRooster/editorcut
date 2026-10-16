@@ -197,6 +197,7 @@ export type ComicPanelAnimation =
 export interface ComicPanelItem {
   id: string;
   name: string;
+  positionLabel?: string; // Human readable position badge (e.g. '⬆️ Arriba', '↔️ Medio', '⬇️ Abajo')
   x: number;      // 0 to 1 normalized canvas coordinate
   y: number;      // 0 to 1 normalized canvas coordinate
   width: number;  // 0 to 1 normalized canvas width
@@ -204,13 +205,14 @@ export interface ComicPanelItem {
   mediaUrl: string | null;
   mediaType: 'video' | 'image';
   mediaFile?: File;
-  sourceClipId?: string;
+  sourceClipId?: string; // Clip ID, or 'active_timeline' to follow timeline cuts
   start: number;       // in timeline seconds when panel enters
   duration: number;    // in seconds (0 = persists until end of timeline)
   animation: ComicPanelAnimation;
   animationDuration: number; // in seconds (e.g. 0.5s)
   volume: number;      // 0 to 1 (default 0 for secondary panels)
   isMuted?: boolean;
+  loop?: boolean;      // whether video loops continuously (default true)
 }
 
 export interface ComicConfig {

@@ -55,6 +55,38 @@ export const COMIC_PRESET_OPTIONS: ComicPresetInfo[] = [
   },
 ];
 
+export function getPanelPositionInfo(layout: ComicLayoutType, index: number): { label: string; description: string } {
+  switch (layout) {
+    case 'strip_3_horiz':
+      if (index === 0) return { label: '⬆️ Arriba', description: 'Tira Superior (Parte de arriba)' };
+      if (index === 1) return { label: '↔️ Medio', description: 'Tira Central (Parte del medio)' };
+      return { label: '⬇️ Abajo', description: 'Tira Inferior (Parte de abajo)' };
+    case 'split_2_horiz':
+      if (index === 0) return { label: '⬆️ Arriba', description: 'Mitad Superior (Parte de arriba)' };
+      return { label: '⬇️ Abajo', description: 'Mitad Inferior (Parte de abajo)' };
+    case 'split_2_vert':
+      if (index === 0) return { label: '⬅️ Izquierda', description: 'Columna Izquierda (50%)' };
+      return { label: '➡️ Derecha', description: 'Columna Derecha (50%)' };
+    case 'comic_3_left':
+      if (index === 0) return { label: '↖️ Sup. Izq', description: 'Superior Izquierda (Arriba)' };
+      if (index === 1) return { label: '↙️ Inf. Izq', description: 'Inferior Izquierda (Abajo)' };
+      return { label: '➡️ Derecha', description: 'Columna Derecha (Alta)' };
+    case 'comic_3_right':
+      if (index === 0) return { label: '⬅️ Izquierda', description: 'Columna Izquierda (Alta)' };
+      if (index === 1) return { label: '↗️ Sup. Der', description: 'Superior Derecha (Arriba)' };
+      return { label: '↘️ Inf. Der', description: 'Inferior Derecha (Abajo)' };
+    case 'grid_4':
+      if (index === 0) return { label: '↖️ Arriba-Izq', description: 'Cuadrante Superior Izquierdo' };
+      if (index === 1) return { label: '↗️ Arriba-Der', description: 'Cuadrante Superior Derecho' };
+      if (index === 2) return { label: '↙️ Abajo-Izq', description: 'Cuadrante Inferior Izquierdo' };
+      return { label: '↘️ Abajo-Der', description: 'Cuadrante Inferior Derecho' };
+    case 'inset_pip':
+      return { label: '🪟 Flotante', description: 'Viñeta Flotante / Reacción' };
+    default:
+      return { label: `[${index + 1}]`, description: `Viñeta ${index + 1}` };
+  }
+}
+
 export function createDefaultComicConfig(): ComicConfig {
   return {
     enabled: false,
@@ -105,7 +137,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-inset-1',
-          name: 'Viñeta Reacción (Esquina)',
+          name: 'Viñeta Flotante (Reacción)',
+          positionLabel: '🪟 Flotante',
           x: 0.60,
           y: 0.58,
           width: 0.36,
@@ -119,6 +152,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_right',
           animationDuration: 0.55,
           volume: 0, // mute by default so it doesn't clash with main audio
+          loop: true,
         },
       ];
       break;
@@ -133,7 +167,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-c3l-0',
-          name: 'Viñeta 1 (Superior Izq)',
+          name: 'Superior Izquierda (Arriba)',
+          positionLabel: '↖️ Sup. Izq',
           x: 0.015,
           y: 0.015,
           width: 0.47,
@@ -147,10 +182,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_left',
           animationDuration: 0.5,
           volume: 1.0,
+          loop: true,
         },
         {
           id: 'panel-c3l-1',
-          name: 'Viñeta 2 (Inferior Izq)',
+          name: 'Inferior Izquierda (Abajo)',
+          positionLabel: '↙️ Inf. Izq',
           x: 0.015,
           y: 0.515,
           width: 0.47,
@@ -164,10 +201,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_bottom',
           animationDuration: 0.55,
           volume: 0,
+          loop: true,
         },
         {
           id: 'panel-c3l-2',
-          name: 'Viñeta 3 (Vertical Der)',
+          name: 'Columna Derecha (Alta)',
+          positionLabel: '➡️ Derecha',
           x: 0.515,
           y: 0.015,
           width: 0.47,
@@ -181,6 +220,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_right',
           animationDuration: 0.6,
           volume: 0,
+          loop: true,
         },
       ];
       break;
@@ -194,7 +234,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-c3r-0',
-          name: 'Viñeta 1 (Vertical Izq)',
+          name: 'Columna Izquierda (Alta)',
+          positionLabel: '⬅️ Izquierda',
           x: 0.015,
           y: 0.015,
           width: 0.47,
@@ -208,10 +249,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_left',
           animationDuration: 0.5,
           volume: 1.0,
+          loop: true,
         },
         {
           id: 'panel-c3r-1',
-          name: 'Viñeta 2 (Superior Der)',
+          name: 'Superior Derecha (Arriba)',
+          positionLabel: '↗️ Sup. Der',
           x: 0.515,
           y: 0.015,
           width: 0.47,
@@ -225,10 +268,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_top',
           animationDuration: 0.55,
           volume: 0,
+          loop: true,
         },
         {
           id: 'panel-c3r-2',
-          name: 'Viñeta 3 (Inferior Der)',
+          name: 'Inferior Derecha (Abajo)',
+          positionLabel: '↘️ Inf. Der',
           x: 0.515,
           y: 0.515,
           width: 0.47,
@@ -242,6 +287,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_bottom',
           animationDuration: 0.6,
           volume: 0,
+          loop: true,
         },
       ];
       break;
@@ -254,7 +300,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-s2v-0',
-          name: 'Viñeta Izquierda (50%)',
+          name: 'Columna Izquierda (50%)',
+          positionLabel: '⬅️ Izquierda',
           x: 0.015,
           y: 0.015,
           width: 0.475,
@@ -268,10 +315,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_left',
           animationDuration: 0.5,
           volume: 1.0,
+          loop: true,
         },
         {
           id: 'panel-s2v-1',
-          name: 'Viñeta Derecha (50%)',
+          name: 'Columna Derecha (50%)',
+          positionLabel: '➡️ Derecha',
           x: 0.51,
           y: 0.015,
           width: 0.475,
@@ -285,6 +334,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_right',
           animationDuration: 0.5,
           volume: 0,
+          loop: true,
         },
       ];
       break;
@@ -297,7 +347,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-s2h-0',
-          name: 'Viñeta Superior (50%)',
+          name: 'Mitad Superior (Arriba)',
+          positionLabel: '⬆️ Arriba',
           x: 0.015,
           y: 0.015,
           width: 0.97,
@@ -311,10 +362,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_top',
           animationDuration: 0.5,
           volume: 1.0,
+          loop: true,
         },
         {
           id: 'panel-s2h-1',
-          name: 'Viñeta Inferior (50%)',
+          name: 'Mitad Inferior (Abajo)',
+          positionLabel: '⬇️ Abajo',
           x: 0.015,
           y: 0.51,
           width: 0.97,
@@ -328,6 +381,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_bottom',
           animationDuration: 0.5,
           volume: 0,
+          loop: true,
         },
       ];
       break;
@@ -342,7 +396,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-g4-0',
-          name: 'Viñeta 1 (Arriba Izq)',
+          name: 'Panel 1 (Arriba Izquierda)',
+          positionLabel: '↖️ Arriba-Izq',
           x: 0.015,
           y: 0.015,
           width: 0.47,
@@ -356,10 +411,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_top',
           animationDuration: 0.45,
           volume: 1.0,
+          loop: true,
         },
         {
           id: 'panel-g4-1',
-          name: 'Viñeta 2 (Arriba Der)',
+          name: 'Panel 2 (Arriba Derecha)',
+          positionLabel: '↗️ Arriba-Der',
           x: 0.515,
           y: 0.015,
           width: 0.47,
@@ -373,10 +430,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_right',
           animationDuration: 0.45,
           volume: 0,
+          loop: true,
         },
         {
           id: 'panel-g4-2',
-          name: 'Viñeta 3 (Abajo Izq)',
+          name: 'Panel 3 (Abajo Izquierda)',
+          positionLabel: '↙️ Abajo-Izq',
           x: 0.015,
           y: 0.515,
           width: 0.47,
@@ -390,10 +449,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_left',
           animationDuration: 0.45,
           volume: 0,
+          loop: true,
         },
         {
           id: 'panel-g4-3',
-          name: 'Viñeta 4 (Abajo Der)',
+          name: 'Panel 4 (Abajo Derecha)',
+          positionLabel: '↘️ Abajo-Der',
           x: 0.515,
           y: 0.515,
           width: 0.47,
@@ -407,6 +468,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_bottom',
           animationDuration: 0.45,
           volume: 0,
+          loop: true,
         },
       ];
       break;
@@ -420,7 +482,8 @@ export function applyComicLayoutPreset(
       newPanels = [
         {
           id: 'panel-s3h-0',
-          name: 'Tira Superior',
+          name: 'Tira Superior (Arriba)',
+          positionLabel: '⬆️ Arriba',
           x: 0.015,
           y: 0.015,
           width: 0.97,
@@ -434,10 +497,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_left',
           animationDuration: 0.5,
           volume: 1.0,
+          loop: true,
         },
         {
           id: 'panel-s3h-1',
-          name: 'Tira Central',
+          name: 'Tira Central (Medio)',
+          positionLabel: '↔️ Medio',
           x: 0.015,
           y: 0.345,
           width: 0.97,
@@ -451,10 +516,12 @@ export function applyComicLayoutPreset(
           animation: 'slide_right',
           animationDuration: 0.5,
           volume: 0,
+          loop: true,
         },
         {
           id: 'panel-s3h-2',
-          name: 'Tira Inferior',
+          name: 'Tira Inferior (Abajo)',
+          positionLabel: '⬇️ Abajo',
           x: 0.015,
           y: 0.675,
           width: 0.97,
@@ -468,6 +535,7 @@ export function applyComicLayoutPreset(
           animation: 'slide_left',
           animationDuration: 0.5,
           volume: 0,
+          loop: true,
         },
       ];
       break;
